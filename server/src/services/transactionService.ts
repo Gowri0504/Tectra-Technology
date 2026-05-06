@@ -1,4 +1,5 @@
 import { TransactionRepository } from '../repositories/transactionRepository';
+import { AuditRepository } from '../repositories/auditRepository';
 import { TransactionType } from '@prisma/client';
 import prisma from '../config/prisma';
 import { cache } from '../utils/cache';
@@ -6,6 +7,7 @@ import { reportQueue } from '../config/queues';
 
 export class TransactionService {
   private transactionRepository = new TransactionRepository();
+  private auditRepository = new AuditRepository();
 
   async createTransaction(userId: string, orgId: string, data: any) {
     return prisma.$transaction(async (tx) => {
@@ -71,7 +73,7 @@ export class TransactionService {
   }
 
   async getTransactions(orgId: string, query: any) {
-    const { type, category, startDate, endDate, page = 1, limit = 10, cursor } = query;
+    const { type, category, startDate, endDate, search, page = 1, limit = 10, cursor } = query;
     
     // Caching for frequently accessed first page
     const cacheKey = `transactions:${orgId}:${JSON.stringify(query)}`;
@@ -86,6 +88,7 @@ export class TransactionService {
       category: category as string,
       startDate: startDate ? new Date(startDate) : undefined,
       endDate: endDate ? new Date(endDate) : undefined,
+      search: search as string,
       skip,
       take,
       cursor: cursor ? { id: cursor } : undefined,
@@ -100,15 +103,13 @@ export class TransactionService {
     const cachedSummary = await cache.get(cacheKey);
     if (cachedSummary) return cachedSummary;
 
-    const summary = await this.transactionRepository.getSummary(orgId);
-    
-    const income = summary.find(s => s.type === 'INCOME')?._sum.amount || 0;
-    const expense = summary.find(s => s.type === 'EXPENSE')?._sum.amount || 0;
-    const balance = Number(income) - Number(expense);
-
-    const result = { income, expense, balance };
-    await cache.set(cacheKey, result, 600); // 10 min cache
+    const result = await this.transactionRepository.getSummary(orgId);
+    await cache.set(cacheKey, result, 3600); // 1 hour cache
     return result;
+  }
+
+  async getAuditLogs(orgId: string) {
+    return this.auditRepository.findByOrg(orgId);
   }
 
   async getTransactionById(id: string, orgId: string) {

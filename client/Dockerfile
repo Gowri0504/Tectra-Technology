@@ -1,6 +1,9 @@
 # Build stage
 FROM node:20-alpine AS build
 
+# Add libc6-compat for SWC compatibility on Alpine
+RUN apk add --no-cache libc6-compat
+
 WORKDIR /app
 
 COPY package*.json ./

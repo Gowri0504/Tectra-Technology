@@ -32,11 +32,12 @@ export class TransactionRepository {
     category?: string;
     startDate?: Date;
     endDate?: Date;
+    search?: string;
     skip?: number;
     take?: number;
     cursor?: Prisma.TransactionWhereUniqueInput;
   }) {
-    const { type, category, startDate, endDate, skip, take = 10, cursor } = params;
+    const { type, category, startDate, endDate, search, skip, take = 10, cursor } = params;
 
     const where: Prisma.TransactionWhereInput = {
       organizationId: orgId,
@@ -48,6 +49,12 @@ export class TransactionRepository {
       where.date = {
         gte: startDate,
         lte: endDate,
+      };
+    }
+    if (search) {
+      where.description = {
+        contains: search,
+        mode: 'insensitive',
       };
     }
 
@@ -88,6 +95,15 @@ export class TransactionRepository {
       ORDER BY month ASC
     `;
 
-    return { typeSummary, monthlySummary };
+    // Category breakdown
+    const categoryBreakdown = await prisma.transaction.groupBy({
+      by: ['category', 'type'],
+      where: { organizationId: orgId },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    return { typeSummary, monthlySummary, categoryBreakdown };
   }
 }

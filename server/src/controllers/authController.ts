@@ -24,10 +24,11 @@ export class AuthController {
   }
 
   private setRefreshTokenCookie(res: Response, refreshToken: string) {
+    const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProduction, // Must be true for SameSite: None
+      sameSite: isProduction ? 'none' : 'strict', // Cross-domain in production
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }

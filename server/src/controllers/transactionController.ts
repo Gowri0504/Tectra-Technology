@@ -95,6 +95,16 @@ export class TransactionController {
     }
   };
 
+  getAuditLogs = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new Error('User not authenticated');
+      const logs = await this.transactionService.getAuditLogs(req.user.orgId);
+      res.json(logs);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   exportCsv = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new Error('User not authenticated');

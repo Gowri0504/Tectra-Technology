@@ -13,6 +13,7 @@ router.post('/', auditLog(AuditAction.CREATE, 'Transaction'), controller.create)
 router.get('/', controller.getAll);
 router.get('/export', controller.exportCsv);
 router.get('/summary', controller.getSummary);
+router.get('/audit', controller.getAuditLogs);
 router.get('/:id', controller.getOne);
 router.patch('/:id', auditLog(AuditAction.UPDATE, 'Transaction'), controller.update);
 router.delete('/:id', auditLog(AuditAction.DELETE, 'Transaction'), controller.delete);

@@ -9,6 +9,7 @@ import api, { setAccessToken } from '@/lib/api';
 import { motion } from 'framer-motion';
 import { DollarSign } from 'lucide-react';
 import { Button, Input, Card } from '@/components/ui/EliteComponents';
+import { useNotify } from '@/providers/NotificationProvider';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -21,6 +22,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const notify = useNotify();
 
   const {
     register,
@@ -36,9 +38,12 @@ export default function LoginPage() {
     try {
       const response = await api.post('/auth/login', data);
       setAccessToken(response.data.accessToken);
+      notify('success', 'Successfully logged in!');
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+      const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
+      setError(msg);
+      notify('error', msg);
     } finally {
       setIsLoading(false);
     }

@@ -1,5 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
+import { ZodError } from 'zod';
+import { Prisma } from '@prisma/client';
 
 export class AppError extends Error {
   constructor(public statusCode: number, public message: string) {
@@ -9,7 +11,7 @@ export class AppError extends Error {
 }
 
 export const errorHandler = (
-  err: Error | AppError,
+  err: any,
   req: Request,
   res: Response,
   _next: NextFunction
@@ -21,10 +23,30 @@ export const errorHandler = (
     });
   }
 
+  if (err instanceof ZodError) {
+    return res.status(400).json({
+      status: 'error',
+      message: 'Validation failed',
+      errors: err.errors,
+    });
+  }
+
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Duplicate record found',
+      });
+    }
+  }
+
   logger.error(err);
+
+  const isProduction = process.env.NODE_ENV === 'production';
 
   return res.status(500).json({
     status: 'error',
-    message: 'Internal server error',
+    message: isProduction ? 'Internal server error' : err.message,
+    stack: isProduction ? undefined : err.stack,
   });
 };

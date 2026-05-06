@@ -72,3 +72,7 @@ export const Badge = ({ children, variant = 'neutral' }: { children: React.React
     </span>
   );
 };
+
+export const Skeleton = ({ className }: { className?: string }) => (
+  <div className={cn("animate-pulse bg-slate-200 dark:bg-slate-800 rounded-xl", className)} />
+);
