@@ -96,7 +96,43 @@
 
 4. Verified Fix:
    - Updated `client/Dockerfile` with wildcard support.
-   - Ensured the build context correctly handles the Next.js output.
+    - Ensured the build context correctly handles the Next.js output.
+
+================================================================================
+💾 PRISMA DOCKER FIX: MISSING DATABASE_URL IN SCHEMA
+================================================================================
+1. Why this error happens:
+   Prisma requires a `DATABASE_URL` to connect to your database. When running `prisma migrate deploy` (especially inside a Docker container), Prisma looks for the `url` property in your `schema.prisma` file. If that property is missing or doesn't correctly point to an environment variable using `env("DATABASE_URL")`, the command fails because it has no destination to apply migrations to.
+
+2. Correct DATABASE_URL Format for Docker Compose:
+   Inside a Docker network, services communicate using their **service names** as hostnames. 
+   Format: `postgresql://USER:PASSWORD@SERVICE_NAME:PORT/DB_NAME`
+   Example: `postgresql://user:password@db:5432/saas_db`
+
+3. Correct prisma/schema.prisma configuration:
+   ```prisma
+   datasource db {
+     provider = "postgresql"
+     url      = env("DATABASE_URL")
+   }
+   ```
+
+4. Working Backend Service Example (docker-compose.yml):
+   ```yaml
+   backend:
+     build: ./server
+     environment:
+       - DATABASE_URL=postgresql://user:password@db:5432/saas_db
+     depends_on:
+       db:
+         condition: service_healthy
+   ```
+
+5. Best Practices for Environment Variables:
+   - Use a `.env` file for local development (ensure it's in `.gitignore`).
+   - In `docker-compose.yml`, you can use `env_file: .env` to load all variables at once.
+   - For production, pass sensitive secrets (like DB passwords) via your CI/CD provider's secret manager or Docker Secrets.
+   - Always wait for the database to be "healthy" before starting the backend to avoid connection-refused errors.
 
 ================================================================================
 🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
