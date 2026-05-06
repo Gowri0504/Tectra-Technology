@@ -75,3 +75,14 @@
    - Removed `--no-available` flag.
    - Added `libc6-compat` for enhanced binary compatibility.
    - Optimized `apk` command to use `--no-cache` for smaller image layers.
+
+================================================================================
+🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
+================================================================================
+1. Issue:
+   Tests were failing in the compiled `dist` folder because `PrismaClient` was attempting to initialize without a valid `DATABASE_URL` environment variable.
+
+2. Fix:
+   - Updated `jest.config.js` to ignore the `dist` folder using `testPathIgnorePatterns`.
+   - Provided a dummy `DATABASE_URL` during test execution to satisfy Prisma's initialization requirements.
+   - Verified all tests pass successfully.
