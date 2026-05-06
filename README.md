@@ -41,33 +41,33 @@ The system follows a **Layered Architecture** (Controller-Service-Repository) fo
 ## 🚀 Setup Guide
 
 ### Docker Setup (Recommended)
+The project is optimized for Docker with multi-stage builds and Node 20+ compatibility for Prisma v7.
+
 ```bash
+# Build and start all services
 docker-compose up --build
+
+# Run in background
+docker-compose up -d
 ```
 
-### Manual Setup
+### Troubleshooting
+- **Node Version**: Prisma v7 requires Node 20+. The Docker containers are configured to use `node:20-alpine`. If running locally, ensure your Node version is 20 or higher.
+- **Database Connection**: The backend waits for the database to be healthy before starting. If the database fails to start, check the logs: `docker-compose logs db`.
+- **Prisma Migrations**: In Docker, migrations are automatically applied on startup using `prisma migrate deploy`.
 
-#### Backend
-1. `cd server`
-2. `npm install`
-3. Configure `.env` (DATABASE_URL, REDIS_URL, SMTP_*)
-4. `npx prisma migrate dev`
-5. `npm run dev`
+## 🏗 Architecture
+The system follows an **Enterprise Layered Architecture**:
+- **API Layer**: Express controllers with Zod validation.
+- **Service Layer**: Business logic, cache management, and background job triggering.
+- **Repository Layer**: Data access using Prisma with multi-tenant isolation.
+- **Async Workers**: BullMQ workers for background tasks (e.g., CSV exports).
 
-#### Frontend
-1. `cd client`
-2. `npm install`
-3. `npm run dev`
-
-## 🧪 Testing
-```bash
-cd server
-npm test
-```
-
-## 📖 API Documentation
-Once the server is running, visit:
-`http://localhost:5000/api-docs`
+## 📈 Performance & Scaling
+- **Caching**: Redis is used to cache dashboard summaries and transaction lists with an intelligent invalidation strategy.
+- **Indexing**: Database fields like `organizationId`, `date`, and `category` are indexed for O(1) or O(log N) lookup speeds.
+- **Monitoring**: Real-time metrics available at `/metrics` for Prometheus integration.
+- **Health Checks**: Every service has integrated health checks for high availability.
 
 ---
 Built with ❤️ for Tectra Technology Assessment.
