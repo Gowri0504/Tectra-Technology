@@ -16,10 +16,22 @@ const loginSchema = z.object({
 export class AuthController {
   private authService = new AuthService();
 
+  private getDeviceData(req: Request) {
+    return {
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip,
+    };
+  }
+
   register = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { email, password, orgName } = registerSchema.parse(req.body);
-      const tokens = await this.authService.register(email, password, orgName);
+      const tokens = await this.authService.register(
+        email, 
+        password, 
+        orgName, 
+        this.getDeviceData(req)
+      );
       res.status(201).json(tokens);
     } catch (error) {
       next(error);
@@ -29,7 +41,11 @@ export class AuthController {
   login = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
-      const tokens = await this.authService.login(email, password);
+      const tokens = await this.authService.login(
+        email, 
+        password, 
+        this.getDeviceData(req)
+      );
       res.json(tokens);
     } catch (error) {
       next(error);
@@ -40,7 +56,10 @@ export class AuthController {
     try {
       const { refreshToken } = req.body;
       if (!refreshToken) throw new Error('Refresh token required');
-      const tokens = await this.authService.refreshToken(refreshToken);
+      const tokens = await this.authService.refreshToken(
+        refreshToken, 
+        this.getDeviceData(req)
+      );
       res.json(tokens);
     } catch (error) {
       next(error);

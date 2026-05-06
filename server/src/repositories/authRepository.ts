@@ -26,13 +26,28 @@ export class AuthRepository {
     });
   }
 
-  async createRefreshToken(userId: string, token: string, expiresAt: Date) {
+  async createRefreshToken(userId: string, token: string, expiresAt: Date, deviceData?: { userAgent?: string; ipAddress?: string }) {
     return prisma.refreshToken.create({
       data: {
         userId,
         token,
         expiresAt,
+        ...deviceData,
       },
+    });
+  }
+
+  async findUserById(id: string) {
+    return prisma.user.findUnique({
+      where: { id },
+      include: { organization: true },
+    });
+  }
+
+  async updateUser(id: string, data: Prisma.UserUpdateInput) {
+    return prisma.user.update({
+      where: { id },
+      data,
     });
   }
 
