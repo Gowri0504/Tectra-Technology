@@ -34,8 +34,9 @@ export class TransactionRepository {
     endDate?: Date;
     skip?: number;
     take?: number;
+    cursor?: Prisma.TransactionWhereUniqueInput;
   }) {
-    const { type, category, startDate, endDate, skip = 0, take = 10 } = params;
+    const { type, category, startDate, endDate, skip, take = 10, cursor } = params;
 
     const where: Prisma.TransactionWhereInput = {
       organizationId: orgId,
@@ -55,7 +56,9 @@ export class TransactionRepository {
         where,
         skip,
         take,
+        cursor,
         orderBy: { date: 'desc' },
+        include: { tags: true },
       }),
       prisma.transaction.count({ where }),
     ]);
