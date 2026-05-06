@@ -167,7 +167,27 @@
 5. Verified Fix:
    - Removed `url` from schema to satisfy Prisma v7 validation.
    - Centralized DB connection in `prisma.config.ts`.
-   - Maintained service-based `DATABASE_URL` in `docker-compose.yml`.
+    - Maintained service-based `DATABASE_URL` in `docker-compose.yml`.
+
+================================================================================
+🚀 PRISMA V7 RUNTIME FIX: CONFIG FILE PERSISTENCE IN DOCKER
+================================================================================
+1. Why this error happens:
+   In Prisma v7, if the `url` property is removed from `schema.prisma`, it MUST be provided in `prisma.config.ts`. During the Docker build, the "build" stage has access to this file, but the "production" stage (which is a clean environment) was missing it. When `prisma migrate deploy` ran at runtime, it couldn't find the config file, leading to the crash.
+
+2. Corrected Dockerfile Implementation (Production Stage):
+   ```dockerfile
+   # Ensure the Prisma config is available at runtime
+   COPY --from=build /app/prisma.config.ts ./
+   ```
+
+3. Environment Variables at Runtime:
+   Docker Compose passes `DATABASE_URL` into the container at runtime. The `prisma.config.ts` file reads this via `process.env.DATABASE_URL`, allowing Prisma to connect to the database container (`db`) using the service name.
+
+4. Verified Fix:
+   - Updated `server/Dockerfile` to copy `prisma.config.ts`.
+   - Maintained strict Prisma v7 standards (no URL in schema).
+   - Ensured the backend waits for the database to be healthy before migrations.
 
 ================================================================================
 🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
