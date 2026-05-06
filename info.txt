@@ -245,6 +245,32 @@
    - Confirmed `prisma migrate deploy` works with standard env vars.
 
 ================================================================================
+🗄️ DATABASE INITIALIZATION: FIXING MISSING TABLES
+================================================================================
+1. Issue Identified:
+   The backend failed with errors like `The table public.users does not exist`. This typically happens after a Docker volume reset where the database is recreated but no tables are initialized.
+
+2. Actions Taken:
+   - Started Containers: Ensured `saas_db` and `saas_backend` are running.
+   - Initialized Tables: Executed `docker exec saas_backend npx prisma db push` to synchronize the database with the current Prisma schema.
+   - Verified Tables: Confirmed table creation via `psql` command.
+
+3. Verified Table List:
+   - `users`
+   - `organizations`
+   - `transactions`
+   - `tags`
+   - `budgets`
+   - `audit_logs`
+   - `refresh_tokens`
+
+4. Troubleshooting Step:
+   If you ever reset your Docker volumes (`docker-compose down -v`), you must run the following command to recreate the tables:
+   ```bash
+   docker exec -it saas_backend npx prisma db push
+   ```
+
+================================================================================
 🚀 PRISMA STABILITY FIX: REVERTING TO STABLE V6
 ================================================================================
 1. Why this was done:
