@@ -43,9 +43,12 @@ app.get('/metrics', metricsHandler);
 
 import authRoutes from './routes/authRoutes';
 import transactionRoutes from './routes/transactionRoutes';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use(errorHandler);
 

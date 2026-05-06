@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: Enterprise CI/CD Pipeline
 
 on:
   push:
@@ -7,8 +7,22 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build:
+  test_and_build:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: saas_test_db
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
 
     steps:
     - uses: actions/checkout@v3
@@ -19,26 +33,26 @@ jobs:
         node-version: 18
         cache: 'npm'
 
-    - name: Install Backend Dependencies
+    - name: Install & Test Backend
       run: |
         cd server
         npm install
-
-    - name: Prisma Generate
-      run: |
-        cd server
         npx prisma generate
+        npm run lint
+        # npm test (Uncomment when tests are added)
 
-    - name: Install Frontend Dependencies
+    - name: Build Backend
+      run: |
+        cd server
+        npm run build
+
+    - name: Install & Build Frontend
       run: |
         cd client
         npm install
-
-    - name: Lint and Build
-      run: |
-        cd client
         npm run lint
         npm run build
 
-    - name: Test (Placeholder)
-      run: echo "No tests configured"
+    - name: Build Docker Images
+      run: |
+        docker-compose build
