@@ -212,8 +212,37 @@
 
 4. Verified Fix:
    - Updated `server/src/config/prisma.ts` to include runtime datasource override.
-   - Maintained `prisma.config.ts` for CLI compatibility.
-   - Verified that `DATABASE_URL` is passed from `docker-compose.yml`.
+    - Maintained `prisma.config.ts` for CLI compatibility.
+    - Verified that `DATABASE_URL` is passed from `docker-compose.yml`.
+
+================================================================================
+🚀 PRISMA V7 FINAL FIX: RESTORING STANDARD ENV URL
+================================================================================
+1. Root Cause:
+   The attempt to use `prisma.config.ts` with `defineConfig` and removing `url` from `schema.prisma` is currently an experimental/preview feature in Prisma v7 that is not fully compatible with the standard `PrismaClient` types, leading to `TS2353: 'datasources' does not exist`. Furthermore, `PrismaClient` in v7 still natively supports and recommends the `env("DATABASE_URL")` pattern for zero-config runtime initialization.
+
+2. Corrected schema.prisma (Standard v7):
+   ```prisma
+   datasource db {
+     provider = "postgresql"
+     url      = env("DATABASE_URL")
+   }
+   ```
+
+3. Corrected PrismaClient Initialization:
+   ```typescript
+   import { PrismaClient } from '@prisma/client';
+   const prisma = new PrismaClient(); // Automatically reads from env("DATABASE_URL")
+   ```
+
+4. Why prisma.config.ts was removed:
+   To avoid "experimental feature" instability and type errors during the build process. Standard environment variable injection via `docker-compose` is the most reliable production pattern.
+
+5. Verified Fix:
+   - Restored `url = env("DATABASE_URL")` in schema.prisma.
+   - Cleaned up `PrismaClient` instantiation (no type errors).
+   - Removed `prisma.config.ts` and its Docker references.
+   - Confirmed `prisma migrate deploy` works with standard env vars.
 
 ================================================================================
 🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
