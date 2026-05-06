@@ -19,7 +19,27 @@ app.use(cors());
 app.use(express.json());
 
 import { generalLimiter } from './middlewares/rateLimiter';
+import { metricsHandler, httpRequestDurationMicroseconds } from './utils/metrics';
+import { v4 as uuidv4 } from 'uuid';
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  const requestId = uuidv4();
+  req.headers['x-request-id'] = requestId;
+  res.setHeader('x-request-id', requestId);
+
+  res.on('finish', () => {
+    const duration = (Date.now() - start) / 1000;
+    httpRequestDurationMicroseconds
+      .labels(req.method, req.route?.path || req.path, res.statusCode.toString())
+      .observe(duration);
+  });
+  next();
+});
+
 app.use(generalLimiter);
+
+app.get('/metrics', metricsHandler);
 
 import authRoutes from './routes/authRoutes';
 import transactionRoutes from './routes/transactionRoutes';
