@@ -19,9 +19,10 @@ export class TransactionController {
   create = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       const data = transactionSchema.parse(req.body);
+      if (!req.user) throw new Error('User not authenticated');
       const transaction = await this.transactionService.createTransaction(
-        req.user!.userId,
-        req.user!.orgId,
+        req.user.userId,
+        req.user.orgId,
         data
       );
       res.status(201).json(transaction);
@@ -32,8 +33,9 @@ export class TransactionController {
 
   getAll = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+      if (!req.user) throw new Error('User not authenticated');
       const result = await this.transactionService.getTransactions(
-        req.user!.orgId,
+        req.user.orgId,
         req.query
       );
       res.json(result);
@@ -44,9 +46,10 @@ export class TransactionController {
 
   getOne = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+      if (!req.user) throw new Error('User not authenticated');
       const transaction = await this.transactionService.getTransactionById(
-        req.params.id,
-        req.user!.orgId
+        req.params.id as string,
+        req.user.orgId
       );
       res.json(transaction);
     } catch (error) {
@@ -56,10 +59,11 @@ export class TransactionController {
 
   update = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+      if (!req.user) throw new Error('User not authenticated');
       const data = transactionSchema.partial().parse(req.body);
       const result = await this.transactionService.updateTransaction(
-        req.params.id,
-        req.user!.orgId,
+        req.params.id as string,
+        req.user.orgId,
         data
       );
       res.json(result);
@@ -70,9 +74,10 @@ export class TransactionController {
 
   delete = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+      if (!req.user) throw new Error('User not authenticated');
       const result = await this.transactionService.deleteTransaction(
-        req.params.id,
-        req.user!.orgId
+        req.params.id as string,
+        req.user.orgId
       );
       res.json(result);
     } catch (error) {
@@ -82,7 +87,8 @@ export class TransactionController {
 
   getSummary = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const summary = await this.transactionService.getDashboardSummary(req.user!.orgId);
+      if (!req.user) throw new Error('User not authenticated');
+      const summary = await this.transactionService.getDashboardSummary(req.user.orgId);
       res.json(summary);
     } catch (error) {
       next(error);
@@ -91,7 +97,8 @@ export class TransactionController {
 
   exportCsv = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      await this.exportService.streamTransactionsToCsv(res, req.user!.orgId);
+      if (!req.user) throw new Error('User not authenticated');
+      await this.exportService.streamTransactionsToCsv(res, req.user.orgId);
     } catch (error) {
       next(error);
     }

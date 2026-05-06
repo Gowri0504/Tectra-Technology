@@ -17,7 +17,7 @@ export class AuditRepository {
     });
   }
 
-  async findByOrg(orgId: string, skip: number = 0, take: number = 50) {
+  async findByOrg(orgId: string, skip = 0, take = 50) {
     return prisma.auditLog.findMany({
       where: { organizationId: orgId },
       orderBy: { createdAt: 'desc' },

@@ -1,14 +1,10 @@
 import { Worker } from 'bullmq';
 import redis from '../config/redis';
-import { logger } from '../index';
-import { ExportService } from './exportService';
+import { logger } from '../utils/logger';
 import { sendEmail } from '../utils/mailService';
-import prisma from '../config/prisma';
-
-const exportService = new ExportService();
 
 export const exportWorker = new Worker('export-queue', async (job) => {
-  const { orgId, userId, email } = job.data;
+  const { orgId, email } = job.data;
   logger.info(`Processing export for org: ${orgId}`);
 
   try {
@@ -20,13 +16,13 @@ export const exportWorker = new Worker('export-queue', async (job) => {
       '<p>Your export has been processed and is ready for download.</p>'
     );
   } catch (error) {
-    logger.error('Export worker error:', error);
+    logger.error(error, 'Export worker error');
     throw error;
   }
 }, { connection: redis });
 
 export const reportWorker = new Worker('report-queue', async (job) => {
-  const { userId, email, orgId, type } = job.data;
+  const { email, type } = job.data;
   
   if (type === 'BUDGET_ALERT') {
     await sendEmail(

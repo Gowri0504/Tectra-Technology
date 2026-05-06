@@ -1,7 +1,29 @@
 import { AuthService } from './authService';
 import { AuthRepository } from '../repositories/authRepository';
 
+jest.mock('../config/prisma', () => ({
+  __esModule: true,
+  default: {
+    user: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    organization: {
+      create: jest.fn(),
+    },
+    refreshToken: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    $transaction: jest.fn((callback) => callback({})),
+  },
+}));
+
 jest.mock('../repositories/authRepository');
+jest.mock('uuid', () => ({ v4: () => 'test-uuid' }));
 
 describe('AuthService', () => {
   let authService: AuthService;
@@ -24,6 +46,7 @@ describe('AuthService', () => {
     const mockUser = {
       id: '1',
       email: 'test@test.com',
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
       password: await require('bcryptjs').hash('pass', 10),
       organizationId: 'org1',
       role: 'ADMIN',

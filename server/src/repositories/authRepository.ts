@@ -1,5 +1,5 @@
 import prisma from '../config/prisma';
-import { Prisma, Role } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 export class AuthRepository {
   async createUser(data: Prisma.UserCreateInput) {

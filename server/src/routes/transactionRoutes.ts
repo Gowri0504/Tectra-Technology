@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { TransactionController } from '../controllers/transactionController';
-import { authenticate, authorize } from '../middlewares/authMiddleware';
+import { authenticate } from '../middlewares/authMiddleware';
 import { auditLog } from '../middlewares/auditMiddleware';
 import { AuditAction } from '@prisma/client';
 

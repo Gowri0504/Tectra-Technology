@@ -1,0 +1,18 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const transactionController_1 = require("../controllers/transactionController");
+const authMiddleware_1 = require("../middlewares/authMiddleware");
+const auditMiddleware_1 = require("../middlewares/auditMiddleware");
+const client_1 = require("@prisma/client");
+const router = (0, express_1.Router)();
+const controller = new transactionController_1.TransactionController();
+router.use(authMiddleware_1.authenticate);
+router.post('/', (0, auditMiddleware_1.auditLog)(client_1.AuditAction.CREATE, 'Transaction'), controller.create);
+router.get('/', controller.getAll);
+router.get('/export', controller.exportCsv);
+router.get('/summary', controller.getSummary);
+router.get('/:id', controller.getOne);
+router.patch('/:id', (0, auditMiddleware_1.auditLog)(client_1.AuditAction.UPDATE, 'Transaction'), controller.update);
+router.delete('/:id', (0, auditMiddleware_1.auditLog)(client_1.AuditAction.DELETE, 'Transaction'), controller.delete);
+exports.default = router;

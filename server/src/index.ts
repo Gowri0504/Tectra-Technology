@@ -2,17 +2,12 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import pino from 'pino';
+import { logger } from './utils/logger';
 import { errorHandler } from './middlewares/errorHandler';
 
 dotenv.config();
 
 const app = express();
-const logger = pino({
-  transport: {
-    target: 'pino-pretty',
-  },
-});
 
 app.use(helmet());
 app.use(cors());
@@ -20,7 +15,8 @@ app.use(express.json());
 
 import { generalLimiter } from './middlewares/rateLimiter';
 import { metricsHandler, httpRequestDurationMicroseconds } from './utils/metrics';
-import { v4 as uuidv4 } from 'uuid';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { v4: uuidv4 } = require('uuid');
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -57,5 +53,3 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   logger.info(`Server running on port ${PORT}`);
 });
-
-export { logger };

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../index';
+import { logger } from '../utils/logger';
 
 export class AppError extends Error {
   constructor(public statusCode: number, public message: string) {
@@ -12,7 +12,7 @@ export const errorHandler = (
   err: Error | AppError,
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ) => {
   if (err instanceof AppError) {
     return res.status(err.statusCode).json({

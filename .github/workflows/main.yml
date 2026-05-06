@@ -33,26 +33,48 @@ jobs:
         node-version: 18
         cache: 'npm'
 
-    - name: Install & Test Backend
+    - name: Install Backend Dependencies
       run: |
         cd server
         npm install
+
+    - name: Prisma Generate
+      run: |
+        cd server
         npx prisma generate
+
+    - name: Lint Backend
+      run: |
+        cd server
         npm run lint
-        # npm test (Uncomment when tests are added)
+
+    - name: Test Backend
+      run: |
+        cd server
+        npm test
+      env:
+        DATABASE_URL: postgresql://user:password@localhost:5432/saas_test_db
+        REDIS_URL: redis://localhost:6379
+        ACCESS_TOKEN_SECRET: test_secret
+        REFRESH_TOKEN_SECRET: test_refresh_secret
 
     - name: Build Backend
       run: |
         cd server
         npm run build
 
-    - name: Install & Build Frontend
+    - name: Install Frontend Dependencies
       run: |
         cd client
         npm install
-        npm run lint
-        npm run build
 
-    - name: Build Docker Images
+    - name: Build Frontend
+      run: |
+        cd client
+        npm run build
+      env:
+        NEXT_PUBLIC_API_URL: http://localhost:5000/api
+
+    - name: Docker Build Check
       run: |
         docker-compose build

@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { logger } from '../index';
+import { logger } from './logger';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.mailtrap.io',
@@ -20,6 +20,6 @@ export const sendEmail = async (to: string, subject: string, html: string) => {
     });
     logger.info(`Email sent to ${to}`);
   } catch (error) {
-    logger.error('Email send error:', error);
+    logger.error(error, 'Email send error');
   }
 };

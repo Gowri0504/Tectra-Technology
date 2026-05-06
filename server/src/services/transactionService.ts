@@ -1,5 +1,4 @@
 import { TransactionRepository } from '../repositories/transactionRepository';
-import { AppError } from '../middlewares/errorHandler';
 import { TransactionType } from '@prisma/client';
 import prisma from '../config/prisma';
 import { cache } from '../utils/cache';

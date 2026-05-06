@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthRequest } from './authMiddleware';
 import { AuditRepository } from '../repositories/auditRepository';
 import { AuditAction } from '@prisma/client';
+import { logger } from '../utils/logger';
 
 const auditRepository = new AuditRepository();
 
@@ -16,13 +17,13 @@ export const auditLog = (action: AuditAction, entityType: string) => {
         auditRepository.createLog({
           action,
           entityType,
-          entityId: req.params.id,
+          entityId: req.params.id as string,
           payload: payload ? JSON.parse(JSON.stringify(payload)) : null,
           userId: req.user?.userId,
           organizationId: req.user?.orgId || '',
           ipAddress: req.ip,
           userAgent: req.headers['user-agent'],
-        }).catch(err => console.error('Audit log error:', err));
+        }).catch(err => logger.error(err, 'Audit log error'));
       }
       return originalSend.call(this, body);
     };
