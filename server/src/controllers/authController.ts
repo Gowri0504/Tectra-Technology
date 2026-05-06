@@ -23,16 +23,26 @@ export class AuthController {
     };
   }
 
+  private setRefreshTokenCookie(res: Response, refreshToken: string) {
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+  }
+
   register = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { email, password, orgName } = registerSchema.parse(req.body);
-      const tokens = await this.authService.register(
+      const { accessToken, refreshToken } = await this.authService.register(
         email, 
         password, 
         orgName, 
         this.getDeviceData(req)
       );
-      res.status(201).json(tokens);
+      this.setRefreshTokenCookie(res, refreshToken);
+      res.status(201).json({ accessToken });
     } catch (error) {
       next(error);
     }
@@ -41,12 +51,13 @@ export class AuthController {
   login = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { email, password } = loginSchema.parse(req.body);
-      const tokens = await this.authService.login(
+      const { accessToken, refreshToken } = await this.authService.login(
         email, 
         password, 
         this.getDeviceData(req)
       );
-      res.json(tokens);
+      this.setRefreshTokenCookie(res, refreshToken);
+      res.json({ accessToken });
     } catch (error) {
       next(error);
     }
@@ -54,13 +65,14 @@ export class AuthController {
 
   refresh = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { refreshToken } = req.body;
+      const refreshToken = req.cookies.refreshToken;
       if (!refreshToken) throw new Error('Refresh token required');
-      const tokens = await this.authService.refreshToken(
+      const { accessToken, refreshToken: newRefreshToken } = await this.authService.refreshToken(
         refreshToken, 
         this.getDeviceData(req)
       );
-      res.json(tokens);
+      this.setRefreshTokenCookie(res, newRefreshToken);
+      res.json({ accessToken });
     } catch (error) {
       next(error);
     }
@@ -68,10 +80,11 @@ export class AuthController {
 
   logout = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { refreshToken } = req.body;
+      const refreshToken = req.cookies.refreshToken;
       if (refreshToken) {
         await this.authService.logout(refreshToken);
       }
+      res.clearCookie('refreshToken');
       res.status(204).send();
     } catch (error) {
       next(error);

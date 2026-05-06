@@ -67,7 +67,7 @@ export class TransactionRepository {
   }
 
   async getSummary(orgId: string) {
-    const summary = await prisma.transaction.groupBy({
+    const typeSummary = await prisma.transaction.groupBy({
       by: ['type'],
       where: { organizationId: orgId },
       _sum: {
@@ -75,6 +75,19 @@ export class TransactionRepository {
       },
     });
 
-    return summary;
+    // PostgreSQL specific monthly summary
+    const monthlySummary: any[] = await prisma.$queryRaw`
+      SELECT 
+        DATE_TRUNC('month', date) as month,
+        type,
+        SUM(amount) as total
+      FROM transactions
+      WHERE "organizationId" = ${orgId}
+      AND date >= DATE_TRUNC('year', CURRENT_DATE)
+      GROUP BY month, type
+      ORDER BY month ASC
+    `;
+
+    return { typeSummary, monthlySummary };
   }
 }

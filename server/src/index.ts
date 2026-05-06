@@ -1,6 +1,7 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import { logger } from './utils/logger';
 import { errorHandler } from './middlewares/errorHandler';
@@ -10,8 +11,12 @@ dotenv.config();
 const app = express();
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  credentials: true,
+}));
 app.use(express.json());
+app.use(cookieParser());
 
 import { generalLimiter } from './middlewares/rateLimiter';
 import { metricsHandler, httpRequestDurationMicroseconds } from './utils/metrics';

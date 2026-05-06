@@ -2,66 +2,132 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '@/lib/api';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import api, { setAccessToken } from '@/lib/api';
+import { motion } from 'framer-motion';
+import { DollarSign } from 'lucide-react';
+import { Button, Input, Card } from '@/components/ui/EliteComponents';
+
+const loginSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+type LoginForm = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginForm>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const onSubmit = async (data: LoginForm) => {
+    setIsLoading(true);
+    setError('');
     try {
-      const { data } = await api.post('/auth/login', { email, password });
-      localStorage.setItem('accessToken', data.accessToken);
-      localStorage.setItem('refreshToken', data.refreshToken);
+      const response = await api.post('/auth/login', data);
+      setAccessToken(response.data.accessToken);
       router.push('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
+      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600">
-      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
-        <h2 className="text-3xl font-bold text-center mb-6 text-gray-800">Welcome Back</h2>
-        {error && <p className="text-red-500 text-sm mb-4 text-center">{error}</p>}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition duration-200"
-          >
-            Sign In
-          </button>
-        </form>
-        <p className="mt-4 text-center text-sm text-gray-600">
-          Don't have an account?{' '}
-          <a href="/register" className="text-indigo-600 hover:underline">
-            Register
-          </a>
-        </p>
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-black p-4">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-indigo-500/10 blur-[120px] rounded-full" />
+        <div className="absolute -bottom-[10%] -right-[10%] w-[40%] h-[40%] bg-emerald-500/10 blur-[120px] rounded-full" />
       </div>
+
+      <Card className="w-full max-w-lg p-8 lg:p-12 relative z-10 border-none shadow-2xl shadow-indigo-500/10 dark:shadow-none">
+        <div className="flex flex-col items-center mb-10">
+          <motion.div 
+            whileHover={{ scale: 1.05, rotate: 5 }}
+            className="w-16 h-16 bg-indigo-600 rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-500/40 mb-6"
+          >
+            <DollarSign className="text-white w-8 h-8" />
+          </motion.div>
+          <h2 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Welcome Back</h2>
+          <p className="text-slate-500 dark:text-slate-400 font-medium">Access your enterprise dashboard</p>
+        </div>
+
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-6 p-4 rounded-2xl bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-sm font-bold flex items-center gap-3"
+          >
+            <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+            {error}
+          </motion.div>
+        )}
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <Input
+            label="Corporate Email"
+            type="email"
+            placeholder="name@company.com"
+            {...register('email')}
+            error={errors.email?.message}
+            required
+            autoComplete="email"
+          />
+          
+          <div className="space-y-1.5">
+            <Input
+              label="Secure Password"
+              type="password"
+              placeholder="••••••••"
+              {...register('password')}
+              error={errors.password?.message}
+              required
+              autoComplete="current-password"
+            />
+            <div className="flex justify-end">
+              <button type="button" className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline">
+                Forgot password?
+              </button>
+            </div>
+          </div>
+
+          <Button 
+            type="submit" 
+            className="w-full py-4 text-lg mt-4 group"
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <div className="flex items-center justify-center gap-2">
+                Sign In to Account
+              </div>
+            )}
+          </Button>
+
+          <p className="text-center text-slate-500 dark:text-slate-400 text-sm font-medium">
+            Don't have an account?{' '}
+            <button 
+              type="button" 
+              onClick={() => router.push('/register')}
+              className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
+            >
+              Register your organization
+            </button>
+          </p>
+        </form>
+      </Card>
     </div>
   );
 }
