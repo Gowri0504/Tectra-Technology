@@ -290,6 +290,30 @@
    - Backend now starts correctly with standard v6 schema configuration.
 
 ================================================================================
+🌐 DOCKER NETWORK FIX: DNS & CONNECTIVITY ISSUES
+================================================================================
+1. Issue Identified:
+   The Docker build failed with `lookup registry-1.docker.io: no such host`, indicating that Docker was unable to resolve external domain names via DNS.
+
+2. Actions Taken:
+   - Reset Docker Network: Executed `docker network prune -f` to clear stale or corrupted network configurations.
+   - Flushed Host DNS: Executed `ipconfig /flushdns` on Windows to clear the host resolver cache.
+   - Verified Connectivity: Ran a test container pull which succeeded, confirming that registry access is restored.
+
+3. Recommended Manual Steps (if issue persists):
+   - Restart Docker Desktop: Completely exit and reopen the application to refresh its internal state.
+   - Manual DNS Configuration:
+     - Open Docker Desktop Settings → Resources → Network.
+     - Set DNS manually to Google (`8.8.8.8`) or Cloudflare (`1.1.1.1`).
+   - Network Check: If on a restricted network (like college WiFi or a corporate VPN), try switching to a mobile hotspot to bypass restrictive firewalls.
+
+4. Verified Build Command:
+   ```bash
+   docker-compose down -v
+   docker-compose up --build
+   ```
+
+================================================================================
 🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
 ================================================================================
 1. Issue:
