@@ -245,6 +245,32 @@
    - Confirmed `prisma migrate deploy` works with standard env vars.
 
 ================================================================================
+🚀 PRISMA STABILITY FIX: REVERTING TO STABLE V6
+================================================================================
+1. Why this was done:
+   Prisma v7 introduces breaking changes and experimental configuration patterns (like `prisma.config.ts`) that caused build instability and type errors in the production Docker environment. Reverting to the stable Prisma v6 ensures maximum reliability and compatibility with standard Node.js patterns.
+
+2. Corrected package.json:
+   - Downgraded `prisma` and `@prisma/client` to `^6.7.0`.
+   - Removed `@prisma/config` to eliminate experimental dependency overhead.
+
+3. Restored standard schema.prisma pattern:
+   ```prisma
+   datasource db {
+     provider = "postgresql"
+     url      = env("DATABASE_URL")
+   }
+   ```
+
+4. Simplified PrismaClient Initialization:
+   The client now uses the standard zero-config constructor, which is fully compatible with environment variable injection.
+
+5. Verified Fix:
+   - Build success: TypeScript compilation passes without `TS2353` errors.
+   - Runtime stability: Backend starts successfully and connects to PostgreSQL.
+   - Simplified setup: Removed unnecessary configuration files for a leaner project structure.
+
+================================================================================
 🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
 ================================================================================
 1. Issue:
