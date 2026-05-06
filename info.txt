@@ -271,6 +271,25 @@
    - Simplified setup: Removed unnecessary configuration files for a leaner project structure.
 
 ================================================================================
+🔧 PRISMA DOCKER BUILD FIX: STRICT VERSIONING & CACHE CLEARING
+================================================================================
+1. Root Cause:
+   Docker was still using cached layers or incorrect versioning that pointed to Prisma v7, while the project code used v6 patterns (e.g., `env("DATABASE_URL")` in `schema.prisma`). This mismatch caused `npx prisma generate` to fail with "url is no longer supported" errors.
+
+2. Corrected strict versioning (package.json):
+   - Set `prisma` and `@prisma/client` to exactly `6.7.0` (removed caret `^`).
+   - Performed a clean install to ensure `package-lock.json` is perfectly synced.
+
+3. Dockerfile Optimization:
+   - Added `RUN rm -rf node_modules package-lock.json` before `npm install` in the build stage.
+   - This forces a fresh dependency resolution and prevents version leakage from the build context.
+
+4. Verified Fix:
+   - Local `npx prisma -v` confirmed version `6.7.0`.
+   - Docker build context optimized to ensure clean v6 generation.
+   - Backend now starts correctly with standard v6 schema configuration.
+
+================================================================================
 🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
 ================================================================================
 1. Issue:
