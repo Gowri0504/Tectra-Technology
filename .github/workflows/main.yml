@@ -1,0 +1,44 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+        cache: 'npm'
+
+    - name: Install Backend Dependencies
+      run: |
+        cd server
+        npm install
+
+    - name: Prisma Generate
+      run: |
+        cd server
+        npx prisma generate
+
+    - name: Install Frontend Dependencies
+      run: |
+        cd client
+        npm install
+
+    - name: Lint and Build
+      run: |
+        cd client
+        npm run lint
+        npm run build
+
+    - name: Test (Placeholder)
+      run: echo "No tests configured"
