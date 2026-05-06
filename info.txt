@@ -77,6 +77,28 @@
    - Optimized `apk` command to use `--no-cache` for smaller image layers.
 
 ================================================================================
+🚀 FRONTEND DOCKER FIX: NEXT.JS CONFIG FILE MISMATCH
+================================================================================
+1. Root Cause:
+   The Dockerfile was explicitly looking for `next.config.mjs` during the production stage `COPY` command. However, the project uses a different extension (e.g., `.ts` or `.js`), leading to the `file not found` error during the build.
+
+2. Corrected Dockerfile Implementation:
+   Changed the explicit filename to a wildcard to support any Next.js config extension:
+   ```dockerfile
+   # Copies next.config.js, next.config.mjs, or next.config.ts
+   COPY --from=build /app/next.config.* ./
+   ```
+
+3. Best Practices for Next.js Docker Builds:
+   - Wildcard Matching: Use `next.config.*` to make your Dockerfile resilient to configuration file renames or extension changes (JS vs MJS vs TS).
+   - Multi-stage builds: Continue using multi-stage builds to separate the heavy build environment from the slim production runtime.
+   - Node 20-Alpine: Always use the same base image version across stages to ensure binary compatibility.
+
+4. Verified Fix:
+   - Updated `client/Dockerfile` with wildcard support.
+   - Ensured the build context correctly handles the Next.js output.
+
+================================================================================
 🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
 ================================================================================
 1. Issue:
