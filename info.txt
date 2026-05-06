@@ -132,7 +132,42 @@
    - Use a `.env` file for local development (ensure it's in `.gitignore`).
    - In `docker-compose.yml`, you can use `env_file: .env` to load all variables at once.
    - For production, pass sensitive secrets (like DB passwords) via your CI/CD provider's secret manager or Docker Secrets.
-   - Always wait for the database to be "healthy" before starting the backend to avoid connection-refused errors.
+    - Always wait for the database to be "healthy" before starting the backend to avoid connection-refused errors.
+
+================================================================================
+🛠 PRISMA V7 CONFIGURATION FIX: MIGRATING TO PRISMA.CONFIG.TS
+================================================================================
+1. Why this error happens:
+   Prisma v7 introduces a more flexible configuration system. In some environments or specific configurations, having the `url` property directly in the `schema.prisma` file can cause validation errors. Moving the connection logic to a centralized `prisma.config.ts` allows for better integration with environment variables and programmatic configuration.
+
+2. Corrected schema.prisma:
+   ```prisma
+   datasource db {
+     provider = "postgresql"
+   }
+   ```
+
+3. New prisma.config.ts (in server root):
+   ```ts
+   import { defineConfig } from '@prisma/config';
+   export default defineConfig({
+     datasource: {
+       url: process.env.DATABASE_URL,
+     },
+   });
+   ```
+
+4. Docker Rebuild Instructions:
+   To ensure the changes take effect and clear any stale cache:
+   ```bash
+   docker-compose down -v
+   docker-compose up --build
+   ```
+
+5. Verified Fix:
+   - Removed `url` from schema to satisfy Prisma v7 validation.
+   - Centralized DB connection in `prisma.config.ts`.
+   - Maintained service-based `DATABASE_URL` in `docker-compose.yml`.
 
 ================================================================================
 🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
