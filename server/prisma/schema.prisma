@@ -21,6 +21,14 @@ enum TransactionType {
   EXPENSE
 }
 
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+}
+
 model Organization {
   id        String   @id @default(uuid())
   name      String
@@ -29,6 +37,8 @@ model Organization {
 
   users        User[]
   transactions Transaction[]
+  budgets      Budget[]
+  auditLogs    AuditLog[]
 
   @@map("organizations")
 }
@@ -42,8 +52,13 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  // Brute force protection
+  loginAttempts Int       @default(0)
+  lockUntil     DateTime?
+
   organization  Organization   @relation(fields: [organizationId], references: [id])
   refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
 
   @@index([organizationId])
   @@map("users")
@@ -51,11 +66,15 @@ model User {
 
 model RefreshToken {
   id        String   @id @default(uuid())
-  token     String   @unique
+  token     String   @unique // This will store the hashed token
   userId    String
   revoked   Boolean  @default(false)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  // Device tracking
+  userAgent String?
+  ipAddress String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -76,9 +95,56 @@ model Transaction {
   updatedAt      DateTime        @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id])
+  tags         Tag[]
 
   @@index([organizationId])
   @@index([date])
   @@index([category])
   @@map("transactions")
+}
+
+model Tag {
+  id             String        @id @default(uuid())
+  name           String
+  organizationId String
+  transactions   Transaction[]
+
+  @@unique([name, organizationId])
+  @@map("tags")
+}
+
+model Budget {
+  id             String   @id @default(uuid())
+  category       String
+  amount         Decimal  @db.Decimal(15, 2)
+  period         String   // e.g., "2026-05"
+  organizationId String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([category, period, organizationId])
+  @@map("budgets")
+}
+
+model AuditLog {
+  id             String      @id @default(uuid())
+  action         AuditAction
+  entityType     String
+  entityId       String?
+  payload        Json?
+  userId         String?
+  organizationId String
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime    @default(now())
+
+  user         User?        @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
