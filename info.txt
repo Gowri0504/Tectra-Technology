@@ -29,74 +29,160 @@
 - Scaling Ready: Designed for horizontal scaling by offloading heavy tasks to background workers (BullMQ).
 
 ================================================================================
-🚀 FINAL RUN STEPS
+🛡️ ADVANCED SECURITY & AUTHENTICATION
 ================================================================================
-1. Ensure Docker is installed and running.
-2. Clone the repository and navigate to the root directory.
-3. Run the following command:
-   ```bash
-   docker-compose up --build
-   ```
-4. Access the system:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:5000/api
-   - Health Check: http://localhost:5000/health
-   - API Docs: http://localhost:5000/api-docs
-   - Metrics: http://localhost:5000/metrics
-
-================================================================================
-🏁 STATUS: PRODUCTION READY
-================================================================================
-- ✅ Node 20+ / Prisma v7 compatible.
-- ✅ Optimized Docker images.
-- ✅ High Availability with healthchecks.
-- ✅ Graceful shutdown implemented.
-- ✅ Fully documented architecture and setup.
+- JWT Refresh Token Rotation:
+  - Implemented a secure rotation strategy where each refresh token can only be used once.
+  - On refresh, the old token is revoked and a new one is issued.
+  - Token reuse detection: If an already revoked token is used, all tokens for that user are immediately invalidated to prevent session hijacking.
+- Secure Token Storage:
+  - Refresh tokens are now stored in HTTP-only, Secure, and SameSite=Strict cookies.
+  - This prevents XSS attacks from accessing the refresh token.
+  - Access tokens are kept in-memory in the frontend to minimize exposure.
+- Brute Force Protection:
+  - Implemented account lockout after 5 failed login attempts.
+  - Lockout duration is set to 2 hours.
+  - Uses `loginAttempts` and `lockUntil` fields in the `User` model.
+- Password Security:
+  - Using `bcryptjs` for high-entropy password hashing.
+  - Salt rounds set to 10 for optimal balance between security and performance.
 
 ================================================================================
-🔧 DOCKER BUILD FIX: ALPINE + PRISMA COMPATIBILITY
+🏢 MULTI-TENANCY ARCHITECTURE
 ================================================================================
-1. Root Cause:
-   The error `ERROR: unrecognized option 'no-available'` was caused by an invalid flag `--no-available` in the `apk add` command. The correct flag for disabling the index cache in Alpine is `--no-cache`.
-
-2. Corrected Dockerfile Implementation:
-   ```dockerfile
-   # Install dependencies needed for Prisma
-   RUN apk add --no-cache openssl libc6-compat
-   ```
-
-3. Best Practices for Alpine + Prisma:
-   - Use `libc6-compat`: Alpine uses `musl` instead of `glibc`. Prisma's query engine often requires `libc6-compat` to bridge this gap on Alpine.
-   - Use `openssl`: Prisma requires OpenSSL to establish secure database connections.
-   - Multi-stage builds: Always use multi-stage builds to keep the final production image lean.
-   - Node Version: Ensure Node.js 20+ is used for Prisma v7 compatibility.
-
-4. Verified Fix:
-   - Removed `--no-available` flag.
-   - Added `libc6-compat` for enhanced binary compatibility.
-   - Optimized `apk` command to use `--no-cache` for smaller image layers.
+- Strict Data Isolation:
+  - Every table (User, Transaction, Budget, Tag) is linked to an `Organization`.
+  - All repository methods strictly enforce `organizationId` in their `where` clauses.
+  - Example: `prisma.transaction.findMany({ where: { organizationId: orgId } })`.
+- Tenant Identification:
+  - The `orgId` is embedded in the JWT payload.
+  - `authMiddleware` extracts the `orgId` and attaches it to the request object.
+  - This ensures that the tenant context is always available and verified for every API call.
+- Cross-Tenant Prevention:
+  - Even if a user knows another tenant's ID, the API only honors the `orgId` from their own signed JWT.
 
 ================================================================================
-🚀 FRONTEND DOCKER FIX: NEXT.JS CONFIG FILE MISMATCH
+💰 FINANCIAL TRANSACTION ENGINE
 ================================================================================
-1. Root Cause:
-   The Dockerfile was explicitly looking for `next.config.mjs` during the production stage `COPY` command. However, the project uses a different extension (e.g., `.ts` or `.js`), leading to the `file not found` error during the build.
+- Consistency with Prisma Transactions:
+  - All financial operations use `prisma.$transaction()` to ensure atomicity.
+  - If a transaction create fails, any related operations (like budget updates or audit logs) are rolled back.
+- Optimized Aggregations:
+  - Dashboard summaries use PostgreSQL `SUM` and `GROUP BY` functions for O(log N) performance.
+  - Monthly summaries are generated using `DATE_TRUNC` in raw SQL for precision and speed.
+- Batch Processing:
+  - CSV export uses cursor-based streaming with batch sizes of 1000 records.
+  - This maintains a constant memory footprint even when exporting millions of transactions.
 
-2. Corrected Dockerfile Implementation:
-   Changed the explicit filename to a wildcard to support any Next.js config extension:
-   ```dockerfile
-   # Copies next.config.js, next.config.mjs, or next.config.ts
-   COPY --from=build /app/next.config.* ./
-   ```
+================================================================================
+⚛️ FRONTEND ENGINEERING (NEXT.JS + TANSTACK)
+================================================================================
+- Server State Management:
+  - Using `@tanstack/react-query` for robust caching and background synchronization.
+  - Automatic cache invalidation: Creating a transaction automatically triggers a refetch of the dashboard summary and transaction list.
+- Form Architecture:
+  - Standardized on `react-hook-form` with `zod` for type-safe validation.
+  - Centralized error handling UI in `EliteComponents`.
+- Performance Optimization:
+  - Implemented `memoization` for heavy UI components.
+  - Using `framer-motion` for smooth, non-blocking layout transitions.
+- Secure API Interceptors:
+  - Axios interceptors automatically handle 401 errors by attempting a token refresh via the HTTP-only cookie.
+  - Seamless user experience: The user stays logged in as long as the refresh token is valid.
 
-3. Best Practices for Next.js Docker Builds:
-   - Wildcard Matching: Use `next.config.*` to make your Dockerfile resilient to configuration file renames or extension changes (JS vs MJS vs TS).
-   - Multi-stage builds: Continue using multi-stage builds to separate the heavy build environment from the slim production runtime.
-   - Node 20-Alpine: Always use the same base image version across stages to ensure binary compatibility.
+================================================================================
+📈 SCALABILITY & CLOUD READINESS
+================================================================================
+- Database Optimization:
+  - Indexes on `organizationId`, `createdAt`, and `date` ensure fast queries under heavy load.
+  - Prisma Client is configured for connection pooling (essential for serverless/Vercel deployments).
+- Rate Limiting:
+  - `express-rate-limit` protects sensitive endpoints (login, register).
+  - General API limiter prevents DDoS and brute-force scanning.
+- Observability:
+  - Structured logging with `Pino` captures request context (Request ID) for distributed tracing.
+  - Prometheus metrics enabled for monitoring throughput and latency.
 
-4. Verified Fix:
-   - Updated `client/Dockerfile` with wildcard support.
-    - Ensured the build context correctly handles the Next.js output.
+================================================================================
+📄 DETAILED API SPECIFICATION
+================================================================================
+### AUTHENTICATION
+- POST /api/auth/register
+  - Description: Creates a new organization and an ADMIN user.
+  - Body: { email, password, orgName }
+  - Security: Rate limited (10 attempts/hour).
+- POST /api/auth/login
+  - Description: Authenticates user and sets HTTP-only refresh cookie.
+  - Body: { email, password }
+  - Security: Rate limited, brute-force protection.
+- POST /api/auth/refresh
+  - Description: Rotates refresh token and issues new access token.
+  - Body: {} (Uses cookies)
+- POST /api/auth/logout
+  - Description: Revokes the current refresh token and clears cookies.
+
+### TRANSACTIONS
+- GET /api/transactions
+  - Description: List transactions with pagination and filters.
+  - Query Params: type, category, startDate, endDate, page, limit.
+  - Multi-tenancy: Automatically filtered by user's orgId.
+- POST /api/transactions
+  - Description: Create a new transaction (Income/Expense).
+  - Body: { amount, type, description, category, date, tags }
+  - Logic: Uses Prisma $transaction, checks budgets, triggers cache invalidation.
+- PATCH /api/transactions/:id
+  - Description: Partially update a transaction.
+  - Multi-tenancy: Strictly verified against orgId.
+- DELETE /api/transactions/:id
+  - Description: Remove a transaction.
+- GET /api/transactions/summary
+  - Description: Aggregate financial data for the dashboard.
+  - Logic: Grouped by type and month using optimized SQL.
+- GET /api/transactions/export
+  - Description: Stream entire history to CSV.
+  - Logic: Cursor-based streaming to avoid memory overflow.
+
+================================================================================
+🗄️ DATABASE SCHEMA & RELATIONSHIPS
+================================================================================
+- Organization (1:N) User:
+  - Root entity for multi-tenancy. All data is isolated by Organization ID.
+- User (1:N) RefreshToken:
+  - Supports multiple active devices with secure token rotation.
+- Organization (1:N) Transaction:
+  - Core financial data. Indexed on organizationId and date.
+- Transaction (N:M) Tag:
+  - Flexible categorization using a join table.
+- Organization (1:N) Budget:
+  - Monthly spending limits per category.
+- Organization (1:N) AuditLog:
+  - Immutable record of all CREATE, UPDATE, DELETE actions.
+
+================================================================================
+🛠️ TROUBLESHOOTING & MAINTENANCE
+================================================================================
+- Log Inspection:
+  - All containers use structured logging. View logs via `docker-compose logs -f backend`.
+- Database Migrations:
+  - To add a new field:
+    1. Update `schema.prisma`.
+    2. Run `npx prisma migrate dev --name <description>`.
+- Performance Tuning:
+  - If queries slow down, check the Prometheus metrics for high-latency endpoints.
+  - Ensure all `where` clauses in new queries use indexed fields.
+- Security Audits:
+  - Run `npm audit` in both `client` and `server` regularly.
+  - JWT secrets must be rotated annually in high-security environments.
+
+================================================================================
+🏁 STATUS: PRODUCTION READY & VERIFIED
+================================================================================
+- ✅ Multi-tenant isolation verified at DB level.
+- ✅ JWT Rotation & Cookie security implemented.
+- ✅ Optimized Dashboards with GROUP BY logic.
+- ✅ Streaming CSV Exports for large datasets.
+- ✅ Full CI/CD coverage with GitHub Actions.
+- ✅ Enterprise-grade logging and monitoring.
 
 ================================================================================
 💾 PRISMA DOCKER FIX: MISSING DATABASE_URL IN SCHEMA
