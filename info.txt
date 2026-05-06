@@ -186,8 +186,34 @@
 
 4. Verified Fix:
    - Updated `server/Dockerfile` to copy `prisma.config.ts`.
-   - Maintained strict Prisma v7 standards (no URL in schema).
-   - Ensured the backend waits for the database to be healthy before migrations.
+    - Maintained strict Prisma v7 standards (no URL in schema).
+    - Ensured the backend waits for the database to be healthy before migrations.
+
+================================================================================
+🚀 PRISMA V7 CLIENT FIX: RUNTIME DATASOURCE OVERRIDE
+================================================================================
+1. Why this error happens:
+   In Prisma v7, even if you have a `prisma.config.ts` for CLI tools (like `migrate`), the `PrismaClient` instantiated in your application code sometimes fails to automatically pick up the connection URL if it's missing from `schema.prisma`. This results in the `PrismaClientInitializationError: PrismaClient needs to be constructed with a non-empty, valid PrismaClientOptions`.
+
+2. Corrected PrismaClient Initialization:
+   The client must be explicitly initialized with the `DATABASE_URL` at runtime to ensure it correctly connects to the PostgreSQL container in the Docker network.
+
+   ```typescript
+   // src/config/prisma.ts
+   const prisma = new PrismaClient({
+     datasources: {
+       db: { url: process.env.DATABASE_URL },
+     },
+   });
+   ```
+
+3. Compatibility Note:
+   While `prisma.config.ts` handles the CLI (migrations, generation), the runtime application code still requires the environment variable to be passed into the `PrismaClient` constructor for maximum reliability in Docker environments.
+
+4. Verified Fix:
+   - Updated `server/src/config/prisma.ts` to include runtime datasource override.
+   - Maintained `prisma.config.ts` for CLI compatibility.
+   - Verified that `DATABASE_URL` is passed from `docker-compose.yml`.
 
 ================================================================================
 🧪 TEST STABILITY FIX: PRISMACLIENT INITIALIZATION
