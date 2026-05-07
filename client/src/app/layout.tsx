@@ -15,8 +15,13 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SaaS Expense Manager",
-  description: "Production-grade expense and income management system",
+  title: "Tectra SaaS - Expense Manager",
+  description: "Production-grade multi-tenant expense and income management system",
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

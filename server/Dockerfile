@@ -1,38 +1,89 @@
-# Build stage
-FROM node:20-alpine AS build
+# ============================================
+# PRODUCTION BACKEND DOCKERFILE
+# Multi-stage build for optimal image size
+# ============================================
+
+# ============================================
+# STAGE 1: Dependencies & Build
+# ============================================
+FROM node:20-alpine AS deps
+
+# Install build dependencies
+RUN apk add --no-cache \
+    openssl \
+    libc6-compat \
+    python3 \
+    make \
+    g++
 
 WORKDIR /app
 
-# Install dependencies needed for Prisma
-RUN apk add --no-cache openssl libc6-compat
-
+# Copy package files
 COPY package*.json ./
+
+# Install ALL dependencies (including dev for prisma)
+RUN npm ci
+
+# Copy prisma schema and generate client
 COPY prisma ./prisma/
+RUN npx prisma generate
 
-# Force clean install to avoid Prisma version mismatch caching
-RUN rm -rf node_modules package-lock.json && npm install
+# ============================================
+# STAGE 2: Production Build
+# ============================================
+FROM node:20-alpine AS builder
 
+WORKDIR /app
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/prisma ./prisma
+COPY --from=deps /root/.npm /root/.npm
+COPY --from=deps /root/.cache /root/.cache
+
+# Copy source code
 COPY . .
 
-RUN npx prisma generate
+# Build TypeScript
 RUN npm run build
 
-# Production stage
-FROM node:20-alpine
+# ============================================
+# STAGE 3: Production Runtime
+# ============================================
+FROM node:20-alpine AS runner
+
+# Install runtime dependencies
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
-RUN apk add --no-cache openssl libc6-compat
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
 # Set production environment
 ENV NODE_ENV=production
 
-COPY --from=build /app/package*.json ./
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
+# Copy built artifacts
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
 
+# Set ownership
+RUN chown -R nextjs:nodejs /app
+
+# Switch to non-root user
+USER nextjs
+
+# Expose port
 EXPOSE 5000
 
-# Use a shell script to run migrations before starting the server
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1
+
+# ============================================
+# STARTUP COMMAND
+# Runs migrations before starting server
+# ============================================
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

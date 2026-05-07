@@ -1,8 +1,6 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
@@ -52,7 +50,6 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  // Brute force protection
   loginAttempts Int       @default(0)
   lockUntil     DateTime?
 
@@ -61,18 +58,18 @@ model User {
   auditLogs     AuditLog[]
 
   @@index([organizationId])
+  @@index([email])
   @@map("users")
 }
 
 model RefreshToken {
   id        String   @id @default(uuid())
-  token     String   @unique // This will store the hashed token
+  token     String   @unique
   userId    String
   revoked   Boolean  @default(false)
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  // Device tracking
   userAgent String?
   ipAddress String?
 
@@ -98,6 +95,7 @@ model Transaction {
   tags         Tag[]
 
   @@index([organizationId])
+  @@index([createdAt])
   @@index([date])
   @@index([category])
   @@map("transactions")
@@ -117,7 +115,7 @@ model Budget {
   id             String   @id @default(uuid())
   category       String
   amount         Decimal  @db.Decimal(15, 2)
-  period         String   // e.g., "2026-05"
+  period         String
   organizationId String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

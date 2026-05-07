@@ -15,8 +15,8 @@ const transactionSchema = z.object({
   type: z.enum(['INCOME', 'EXPENSE']),
   description: z.string().min(1, 'Description is required'),
   category: z.string().min(1, 'Category is required'),
-  date: z.string().default(() => new Date().toISOString().split('T')[0]),
-  tags: z.string().optional().transform(val => val ? val.split(',').map(s => s.trim()) : []),
+  date: z.string().min(1, 'Date is required'),
+  tags: z.string().optional(),
 });
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
@@ -24,17 +24,24 @@ type TransactionFormValues = z.infer<typeof transactionSchema>;
 export const TransactionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const queryClient = useQueryClient();
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<TransactionFormValues>({
-    resolver: zodResolver(transactionSchema),
+    resolver: zodResolver(transactionSchema) as any,
     defaultValues: {
       type: 'EXPENSE',
-      date: new Date().toISOString().split('T')[0]
-    }
+      date: new Date().toISOString().split('T')[0],
+      tags: ''
+    } as any
   });
 
   const currentType = watch('type');
 
   const mutation = useMutation({
-    mutationFn: (data: TransactionFormValues) => api.post('/transactions', data),
+    mutationFn: (data: TransactionFormValues) => {
+      const payload = {
+        ...data,
+        tags: data.tags ? data.tags.split(',').map(s => s.trim()) : []
+      };
+      return api.post('/transactions', payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['summary'] });

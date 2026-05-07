@@ -1,17 +1,12 @@
 # Build stage
-FROM node:20-slim AS build
+FROM node:20-alpine AS build
 
-# Install dependencies for building native modules
-RUN apt-get update && apt-get install -y \
-    python3 \
-    make \
-    g++ \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+# Install minimal dependencies for SWC compatibility on Alpine
+RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
-# Harden npm configuration
+# Harden npm configuration for stability
 RUN npm config set strict-ssl false && \
     npm config set registry https://registry.npmjs.org/ && \
     npm config set fetch-retries 5 && \
@@ -21,13 +16,13 @@ RUN npm config set strict-ssl false && \
 COPY package*.json ./
 
 # Install dependencies with retry logic
-RUN npm install || (sleep 5 && npm install)
+RUN npm install --no-audit --no-fund || (sleep 5 && npm install --no-audit --no-fund)
 
 COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:20-slim
+FROM node:20-alpine
 
 WORKDIR /app
 
