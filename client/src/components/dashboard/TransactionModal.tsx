@@ -11,7 +11,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
 const transactionSchema = z.object({
-  amount: z.coerce.number().positive('Amount must be positive'),
+  amount: z.number().positive('Amount must be positive'),
   type: z.enum(['INCOME', 'EXPENSE']),
   description: z.string().min(1, 'Description is required'),
   category: z.string().min(1, 'Category is required'),
@@ -24,12 +24,12 @@ type TransactionFormValues = z.infer<typeof transactionSchema>;
 export const TransactionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const queryClient = useQueryClient();
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<TransactionFormValues>({
-    resolver: zodResolver(transactionSchema) as any,
+    resolver: zodResolver(transactionSchema),
     defaultValues: {
       type: 'EXPENSE',
       date: new Date().toISOString().split('T')[0],
       tags: ''
-    } as any
+    }
   });
 
   const currentType = watch('type');
@@ -42,9 +42,54 @@ export const TransactionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose
       };
       return api.post('/transactions', payload);
     },
-    onSuccess: () => {
+    onMutate: async (newTransaction) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['transactions'] });
+      await queryClient.cancelQueries({ queryKey: ['summary'] });
+
+      // Snapshot the previous value
+      const previousTransactions = queryClient.getQueryData(['transactions']);
+      const previousSummary = queryClient.getQueryData(['summary']);
+
+      // Optimistically update to the new value
+      if (previousTransactions) {
+        queryClient.setQueryData(['transactions'], (old: any) => {
+          if (!old?.data?.transactions) return old;
+          return {
+            ...old,
+            data: {
+              ...old.data,
+              transactions: [
+                {
+                  id: 'temp-' + Date.now(),
+                  ...newTransaction,
+                  date: new Date(newTransaction.date).toISOString(),
+                  tags: newTransaction.tags ? newTransaction.tags.split(',').map(tag => ({ id: tag, name: tag.trim() })) : []
+                },
+                ...old.data.transactions
+              ].slice(0, 10)
+            }
+          };
+        });
+      }
+
+      return { previousTransactions, previousSummary };
+    },
+    onError: (err, newTransaction, context) => {
+      // Rollback
+      if (context?.previousTransactions) {
+        queryClient.setQueryData(['transactions'], context.previousTransactions);
+      }
+      if (context?.previousSummary) {
+        queryClient.setQueryData(['summary'], context.previousSummary);
+      }
+    },
+    onSettled: () => {
+      // Invalidate and refetch
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['summary'] });
+    },
+    onSuccess: () => {
       reset();
       onClose();
     }
@@ -101,7 +146,7 @@ export const TransactionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose
               type="number"
               step="0.01"
               placeholder="0.00"
-              {...register('amount')}
+              {...register('amount', { valueAsNumber: true })}
               error={errors.amount?.message}
             />
             <Input

@@ -2,15 +2,8 @@ import { Response, NextFunction } from 'express';
 import { TransactionService } from '../services/transactionService';
 import { ExportService } from '../services/exportService';
 import { AuthRequest } from '../middlewares/authMiddleware';
-import { z } from 'zod';
-
-const transactionSchema = z.object({
-  amount: z.number().positive(),
-  type: z.enum(['INCOME', 'EXPENSE']),
-  description: z.string().min(1),
-  category: z.string().min(1),
-  date: z.string().optional().transform(val => val ? new Date(val) : new Date()),
-});
+import { sendSuccess } from '../utils/response';
+import { AppError } from '../middlewares/errorHandler';
 
 export class TransactionController {
   private transactionService = new TransactionService();
@@ -18,14 +11,13 @@ export class TransactionController {
 
   create = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const data = transactionSchema.parse(req.body);
-      if (!req.user) throw new Error('User not authenticated');
+      if (!req.user) throw new AppError(401, 'User not authenticated');
       const transaction = await this.transactionService.createTransaction(
         req.user.userId,
         req.user.orgId,
-        data
+        req.body
       );
-      res.status(201).json(transaction);
+      return sendSuccess(res, 'Transaction created successfully', transaction, 201);
     } catch (error) {
       next(error);
     }
@@ -33,12 +25,18 @@ export class TransactionController {
 
   getAll = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new Error('User not authenticated');
+      if (!req.user) throw new AppError(401, 'User not authenticated');
       const result = await this.transactionService.getTransactions(
         req.user.orgId,
-        req.query
+        req.query,
+        req.user.userId,
+        req.user.role
       );
-      res.json(result);
+      return sendSuccess(res, 'Transactions retrieved successfully', result, 200, {
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+      });
     } catch (error) {
       next(error);
     }
@@ -46,12 +44,15 @@ export class TransactionController {
 
   getOne = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new Error('User not authenticated');
+      if (!req.user) throw new AppError(401, 'User not authenticated');
       const transaction = await this.transactionService.getTransactionById(
-        req.params.id as string,
-        req.user.orgId
+        String(req.params.id),
+        req.user.orgId,
+        req.user.userId,
+        req.user.role
       );
-      res.json(transaction);
+      if (!transaction) throw new AppError(404, 'Transaction not found');
+      return sendSuccess(res, 'Transaction retrieved successfully', transaction);
     } catch (error) {
       next(error);
     }
@@ -59,14 +60,15 @@ export class TransactionController {
 
   update = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new Error('User not authenticated');
-      const data = transactionSchema.partial().parse(req.body);
+      if (!req.user) throw new AppError(401, 'User not authenticated');
       const result = await this.transactionService.updateTransaction(
-        req.params.id as string,
+        String(req.params.id),
         req.user.orgId,
-        data
+        req.body,
+        req.user.userId,
+        req.user.role
       );
-      res.json(result);
+      return sendSuccess(res, 'Transaction updated successfully', result);
     } catch (error) {
       next(error);
     }
@@ -74,12 +76,14 @@ export class TransactionController {
 
   delete = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new Error('User not authenticated');
-      const result = await this.transactionService.deleteTransaction(
-        req.params.id as string,
-        req.user.orgId
+      if (!req.user) throw new AppError(401, 'User not authenticated');
+      await this.transactionService.deleteTransaction(
+        String(req.params.id),
+        req.user.orgId,
+        req.user.userId,
+        req.user.role
       );
-      res.json(result);
+      return sendSuccess(res, 'Transaction deleted successfully');
     } catch (error) {
       next(error);
     }
@@ -87,9 +91,13 @@ export class TransactionController {
 
   getSummary = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new Error('User not authenticated');
-      const summary = await this.transactionService.getDashboardSummary(req.user.orgId);
-      res.json(summary);
+      if (!req.user) throw new AppError(401, 'User not authenticated');
+      const summary = await this.transactionService.getDashboardSummary(
+        req.user.orgId,
+        req.user.userId,
+        req.user.role
+      );
+      return sendSuccess(res, 'Summary retrieved successfully', summary);
     } catch (error) {
       next(error);
     }
@@ -97,18 +105,27 @@ export class TransactionController {
 
   getAuditLogs = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new Error('User not authenticated');
+      if (!req.user) throw new AppError(401, 'User not authenticated');
       const logs = await this.transactionService.getAuditLogs(req.user.orgId);
-      res.json(logs);
+      return sendSuccess(res, 'Audit logs retrieved successfully', logs);
     } catch (error) {
       next(error);
     }
   };
 
-  exportCsv = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  exportCSV = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      if (!req.user) throw new Error('User not authenticated');
-      await this.exportService.streamTransactionsToCsv(res, req.user.orgId);
+      if (!req.user) throw new AppError(401, 'User not authenticated');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=transactions-${Date.now()}.csv`);
+      
+      await this.exportService.streamTransactionsToCSV(
+        res,
+        req.user.orgId,
+        req.user.userId,
+        req.user.role
+      );
     } catch (error) {
       next(error);
     }

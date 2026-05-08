@@ -1,6 +1,8 @@
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
+import compression from 'compression';
+import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { env } from './config/env';
 import { logger } from './utils/logger';
@@ -13,13 +15,14 @@ app.use(cors({
   origin: env.CLIENT_URL,
   credentials: true,
 }));
+app.use(compression());
+app.use(morgan('combined'));
 app.use(express.json());
 app.use(cookieParser());
 
 import { generalLimiter } from './middlewares/rateLimiter';
 import { metricsHandler, httpRequestDurationMicroseconds } from './utils/metrics';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { v4: uuidv4 } = require('uuid');
+import { v4 as uuidv4 } from 'uuid';
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -43,12 +46,14 @@ app.get('/metrics', metricsHandler);
 import authRoutes from './routes/authRoutes';
 import transactionRoutes from './routes/transactionRoutes';
 import budgetRoutes from './routes/budgetRoutes';
+import userRoutes from './routes/userRoutes';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/budgets', budgetRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.get('/health', (req, res) => {

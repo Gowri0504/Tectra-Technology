@@ -37,11 +37,11 @@ export default function LoginPage() {
     setError('');
     try {
       const response = await api.post('/auth/login', data);
-      setAccessToken(response.data.accessToken);
+      setAccessToken(response.data.data.accessToken);
       notify('success', 'Successfully logged in!');
       router.push('/dashboard');
-    } catch (err: any) {
-      const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
+    } catch (err: unknown) {
+      const msg = (err as any).response?.data?.message || 'Login failed. Please check your credentials.';
       setError(msg);
       notify('error', msg);
     } finally {

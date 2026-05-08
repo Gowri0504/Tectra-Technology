@@ -18,6 +18,9 @@ jest.mock('../config/prisma', () => ({
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    auditLog: {
+      create: jest.fn(),
+    },
     $transaction: jest.fn((callback) => callback({})),
   },
 }));

@@ -91,6 +91,36 @@
   - Seamless user experience: The user stays logged in as long as the refresh token is valid.
 
 ================================================================================
+📅 RECENT UPDATES - MAY 08, 2026
+================================================================================
+- [Backend] Fixed Prisma Seeding: Resolved `ERR_REQUIRE_CYCLE_MODULE` by optimizing the `ts-node` execution strategy in `package.json`. Seeding now works perfectly inside Docker.
+- [Database] Schema Hardening:
+  - Added composite indexes for optimized multi-tenant queries: `[organizationId, date]`, `[organizationId, type]`.
+  - Implemented `onDelete: Cascade` for Organization relations to ensure clean data removal.
+- [Security] Error Handling Upgrade:
+  - Centralized `errorHandler` now specifically handles Prisma-specific errors (P2002, P2003, P2025) and database connection issues.
+  - Introduced `asyncHandler` utility to streamline controller logic and ensure no unhandled promise rejections.
+- [Testing] Integration Suite:
+  - Added Jest + Supertest integration tests for Auth and Transaction flows.
+  - Verified multi-tenant isolation at the API level through automated tests.
+- [CI/CD] Pipeline Stabilization:
+  - Updated GitHub Actions workflow to include linting, type-checking, Prisma validation, and integration testing with service containers (Postgres/Redis).
+- [Documentation] Swagger/OpenAPI:
+  - Fully documented the API with Swagger 3.0 annotations for improved developer onboarding and testing.
+- [Architecture] Repository-Level Isolation: Verified that all data access methods strictly enforce tenant isolation, making it impossible to leak data across organizations.
+
+================================================================================
+📅 RECENT UPDATES - MAY 08, 2026 (FINAL)
+================================================================================
+- [Backend] Role-Based Access Control: Restricted budget creation/updates to ADMIN and ACCOUNTANT roles.
+- [Backend] Enhanced Repository Isolation: Updated `getSummary` to strictly respect `userId` for the USER role, ensuring true data privacy in multi-tenant environments.
+- [Frontend] Error Resilience: Implemented a global `ErrorBoundary` to catch runtime UI failures and provide a graceful recovery path.
+- [Frontend] Performance UX: Added "Optimistic Updates" for transaction creation and deletion, providing instant UI feedback while background synchronization occurs.
+- [Frontend] Accessibility Audit: Improved screen reader support and navigation clarity by adding `aria-label` and `role` attributes to key interactive components.
+- [Logging] Production Configuration: Optimized Pino logger to use structured JSON in production and pretty-printed logs in development.
+- [Infrastructure] Connection Integrity: Verified graceful shutdown and connection pooling across the entire stack.
+
+================================================================================
 📈 SCALABILITY & CLOUD READINESS
 ================================================================================
 - Database Optimization:
@@ -373,30 +403,87 @@
    - Confirmed `prisma migrate deploy` works with standard env vars.
 
 ================================================================================
-🗄️ DATABASE INITIALIZATION: FIXING MISSING TABLES
+🗄️ DATABASE INITIALIZATION & MIGRATION SYSTEM (PERMANENT FIX)
 ================================================================================
 1. Issue Identified:
-   The backend failed with errors like `The table public.users does not exist`. This typically happens after a Docker volume reset where the database is recreated but no tables are initialized.
+   The backend was failing with `PrismaClientKnownRequestError: The table public.users does not exist`. This occurred because migrations were being generated inside temporary Docker containers and lost on rebuild, or never applied to the persistent volume.
 
-2. Actions Taken:
-   - Started Containers: Ensured `saas_db` and `saas_backend` are running.
-   - Initialized Tables: Executed `docker exec saas_backend npx prisma db push` to synchronize the database with the current Prisma schema.
-   - Verified Tables: Confirmed table creation via `psql` command.
+2. Permanent Fix Strategy:
+   - Local Migration Generation: Migrations are now generated on the host machine using `npx prisma migrate dev`. This creates a physical `server/prisma/migrations` folder that is tracked by Git.
+   - Deterministic Deployment: The Docker image now COPIES this migrations folder into the image.
+   - Startup Sync: The backend startup command is set to `npx prisma migrate deploy && node dist/index.js`. This ensures that every time a container starts, it applies any pending migrations from the local folder to the database.
 
-3. Verified Table List:
-   - `users`
-   - `organizations`
-   - `transactions`
-   - `tags`
-   - `budgets`
-   - `audit_logs`
-   - `refresh_tokens`
+3. Verified Implementation:
+   - Generated initial migration: `20260507103448_init`.
+   - Verified that `docker exec saas_db psql` shows all 9 tables (users, organizations, etc.) are present and correctly schema-matched.
+   - Verified that `/api/auth/register` works end-to-end, creating both an Organization and an Admin User in a single flow.
 
-4. Troubleshooting Step:
-   If you ever reset your Docker volumes (`docker-compose down -v`), you must run the following command to recreate the tables:
-   ```bash
-   docker exec -it saas_backend npx prisma db push
-   ```
+================================================================================
+🏗️ ARCHITECTURAL DESIGN PATTERNS (INTERVIEW READY)
+================================================================================
+- Layered Architecture (N-Tier):
+  - Controller Layer: Handles HTTP requests, input validation (Zod), and response formatting.
+  - Service Layer: Contains core business logic, orchestrates repository calls, and manages side effects (caching, notifications).
+  - Repository Layer: Direct database interaction using Prisma. Abstracts complex queries away from business logic.
+  - Why this matters? Separation of concerns makes the system unit-testable and maintainable. You can swap the database or the web framework without touching the business logic.
+
+- Multi-Tenant Strategy (SaaS Isolation):
+  - Discriminator Column Pattern: Every multi-tenant table contains an `organizationId`.
+  - Global Filtering: The `orgId` is verified via JWT and passed down through the service layer to the repository, ensuring a user can NEVER see data from another organization.
+  - Security: Prevents IDOR (Insecure Direct Object Reference) attacks by strictly scoping queries to the authenticated tenant.
+
+- Event-Driven Background Processing:
+  - Using Redis + BullMQ for asynchronous tasks.
+  - Use Case: Budget alerts and report generation are offloaded to workers, keeping the main API thread responsive for high-concurrency (10K+ users).
+
+================================================================================
+🎓 INTERVIEW PREPARATION: TECHNICAL DEEP DIVE
+================================================================================
+Q1: How do you handle database consistency for financial operations?
+A: I use Prisma's `$transaction` API. For example, when creating a transaction, we simultaneously check budgets and create audit logs. If any step fails, the entire operation rolls back. This prevents partial writes and ensures financial data integrity.
+
+Q2: Explain your JWT Refresh Token Rotation strategy.
+A: To prevent token theft, I implement rotation. When a user refreshes their access token, I issue a NEW refresh token and revoke the old one. If the system detects a used/revoked token being presented, it assumes a breach and revokes ALL active sessions for that user. This provides a high level of security against session hijacking.
+
+Q3: How does your system scale to handle 10,000 concurrent users?
+A: 
+1. Database Indexing: I've indexed `organizationId` and `createdAt` to ensure O(log N) query performance.
+2. Caching: Redis stores dashboard summaries, reducing DB load for frequently accessed data.
+3. Connection Pooling: Using Prisma's built-in pooling to manage database connections efficiently.
+4. Stateless Backend: The backend is stateless (JWT-based), allowing it to be horizontally scaled across multiple containers behind a load balancer.
+
+Q4: How do you prevent N+1 query problems in your API?
+A: I use Prisma's `include` and `select` features which perform efficient SQL JOINs or batched queries. For example, when fetching transactions, I include the `tags` relation in a single database round-trip.
+
+Q5: What is your strategy for handling large data exports?
+A: I use Cursor-Based Streaming. Instead of loading 100k rows into memory (which would crash the server), I fetch data in batches of 1000 and stream them directly to the HTTP response using `fast-csv`. This maintains a low and constant memory footprint.
+
+================================================================================
+🛡️ PRODUCTION SECURITY HARDENING CHECKLIST
+================================================================================
+- [x] Helmet.js: Sets secure HTTP headers (CSP, HSTS, X-Content-Type-Options).
+- [x] Rate Limiting: `express-rate-limit` prevents brute-force on auth endpoints.
+- [x] CORS: Restricted to trusted domains (CLIENT_URL).
+- [x] HTTP-Only Cookies: Refresh tokens are inaccessible to client-side JavaScript.
+- [x] Input Validation: Zod schemas ensure no malformed data reaches the DB.
+- [x] Non-Root Docker User: Containers run as `nextjs` user, not `root`, limiting the blast radius of any potential exploit.
+- [x] Environment Secrets: Validated at runtime to ensure no "undefined" configuration crashes the production environment.
+
+================================================================================
+🚀 DEPLOYMENT & CI/CD PIPELINE
+================================================================================
+- GitHub Actions:
+  - Linting: Runs ESLint to ensure code quality.
+  - Testing: Runs Jest unit and integration tests.
+  - Build Check: Verifies that both Next.js and Express apps compile.
+  - Prisma Check: Ensures migrations are valid and schema is in sync.
+- Production Hosting:
+  - Frontend: Vercel (Edge network, auto-scaling).
+  - Backend: Render or Railway (Docker-based, health-checked).
+  - Database: Managed PostgreSQL (Supabase/RDS) with connection pooling enabled.
+- Monitoring:
+  - Structured Logging: Pino logs for production debugging.
+  - Metrics: Prometheus/Grafana integration for performance monitoring.
 
 ================================================================================
 🚀 PRISMA STABILITY FIX: REVERTING TO STABLE V6

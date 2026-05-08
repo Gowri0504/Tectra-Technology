@@ -16,6 +16,8 @@ import { formatCurrency, cn } from '@/lib/utils';
 import { Card, Button, Badge, Skeleton } from '@/components/ui/EliteComponents';
 import { TransactionModal } from '@/components/dashboard/TransactionModal';
 import { useNotify } from '@/providers/NotificationProvider';
+import { useAuth } from '@/providers/AuthProvider';
+import { Sidebar } from '@/components/layout/Sidebar';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area 
@@ -23,8 +25,39 @@ import {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+interface DashboardSummary {
+  typeSummary: Array<{ type: 'INCOME' | 'EXPENSE'; _sum: { amount: number } }>;
+  monthlySummary: Array<{ month: string; type: 'INCOME' | 'EXPENSE'; total: number }>;
+  categoryBreakdown: Array<{ category: string; type: 'INCOME' | 'EXPENSE'; _sum: { amount: number } }>;
+}
+
+interface AuditLog {
+  id: string;
+  action: string;
+  entityType: string;
+  createdAt: string;
+  user?: { email: string };
+}
+
+interface Transaction {
+  id: string;
+  amount: number;
+  type: 'INCOME' | 'EXPENSE';
+  description: string;
+  category: string;
+  date: string;
+  tags?: Array<{ id: string; name: string }>;
+}
+
+interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T;
+}
+
 export default function Dashboard() {
   const { theme, setTheme } = useTheme();
+  const { user } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -34,7 +67,7 @@ export default function Dashboard() {
 
   useEffect(() => setMounted(true), []);
 
-  const { data: dashboardData, isLoading: isSummaryLoading } = useQuery({
+  const { data: dashboardData, isLoading: isSummaryLoading } = useQuery<ApiResponse<DashboardSummary>>({
     queryKey: ['summary'],
     queryFn: async () => {
       const { data } = await api.get('/transactions/summary');
@@ -42,7 +75,7 @@ export default function Dashboard() {
     },
   });
 
-  const { data: auditLogs, isLoading: isLogsLoading } = useQuery({
+  const { data: auditLogs, isLoading: isLogsLoading } = useQuery<ApiResponse<AuditLog[]>>({
     queryKey: ['audit-logs'],
     queryFn: async () => {
       const { data } = await api.get('/transactions/audit');
@@ -52,17 +85,17 @@ export default function Dashboard() {
   });
 
   const summary = useMemo(() => {
-    if (!dashboardData) return { income: 0, expense: 0, balance: 0 };
-    const income = dashboardData.typeSummary.find((s: any) => s.type === 'INCOME')?._sum?.amount || 0;
-    const expense = dashboardData.typeSummary.find((s: any) => s.type === 'EXPENSE')?._sum?.amount || 0;
+    if (!dashboardData?.data) return { income: 0, expense: 0, balance: 0 };
+    const income = dashboardData.data.typeSummary.find((s) => s.type === 'INCOME')?._sum?.amount || 0;
+    const expense = dashboardData.data.typeSummary.find((s) => s.type === 'EXPENSE')?._sum?.amount || 0;
     const balance = Number(income) - Number(expense);
     return { income, expense, balance };
   }, [dashboardData]);
 
   const chartData = useMemo(() => {
-    if (!dashboardData?.monthlySummary) return [];
-    const months: any = {};
-    dashboardData.monthlySummary.forEach((item: any) => {
+    if (!dashboardData?.data?.monthlySummary) return [];
+    const months: Record<string, { name: string; income: number; expense: number }> = {};
+    dashboardData.data.monthlySummary.forEach((item) => {
       const date = new Date(item.month);
       const monthLabel = date.toLocaleString('default', { month: 'short' });
       if (!months[monthLabel]) months[monthLabel] = { name: monthLabel, income: 0, expense: 0 };
@@ -73,23 +106,24 @@ export default function Dashboard() {
   }, [dashboardData]);
 
   const pieData = useMemo(() => {
-    if (!dashboardData?.categoryBreakdown) return [];
-    return dashboardData.categoryBreakdown
-      .filter((c: any) => c.type === 'EXPENSE')
-      .map((c: any) => ({
+    if (!dashboardData?.data?.categoryBreakdown) return [];
+    return dashboardData.data.categoryBreakdown
+      .filter((c) => c.type === 'EXPENSE')
+      .map((c) => ({
         name: c.category,
         value: Number(c._sum.amount)
       }))
-      .sort((a: any, b: any) => b.value - a.value)
+      .sort((a, b) => b.value - a.value)
       .slice(0, 5);
   }, [dashboardData]);
 
   const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-  const { data: transactionsData, isLoading: isTransactionsLoading } = useQuery({
+  const { data: transactionsData, isLoading: isTransactionsLoading } = useQuery<ApiResponse<{ transactions: Transaction[]; total: number }>>({
     queryKey: ['transactions', activeTab, search],
     queryFn: async () => {
-      const params: any = { search };
+      const params: Record<string, string | number> = {};
+      if (search) params.search = search;
       if (activeTab !== 'all' && activeTab !== 'activity') params.type = activeTab.toUpperCase();
       const { data } = await api.get('/transactions', { params });
       return data;
@@ -114,12 +148,12 @@ export default function Dashboard() {
 
   const handlePdfExport = () => {
     try {
-      if (!transactionsData?.transactions) return;
+      if (!transactionsData?.data?.transactions) return;
       const doc = new jsPDF();
       doc.text('Transaction Report', 14, 15);
       doc.setFontSize(10);
       doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
-      const tableData = transactionsData.transactions.map((tx: any) => [
+      const tableData = transactionsData.data.transactions.map((tx) => [
         new Date(tx.date).toLocaleDateString(),
         tx.description,
         tx.category,
@@ -159,38 +193,13 @@ export default function Dashboard() {
 
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-black transition-colors duration-500">
-      <aside className="hidden lg:flex flex-col w-72 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 p-8">
-        <div className="flex items-center gap-3 mb-12">
-          <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
-            <DollarSign className="text-white w-6 h-6" />
-          </div>
-          <span className="text-xl font-black tracking-tight dark:text-white">TECTRA</span>
-        </div>
-        <nav className="flex-1 space-y-2">
-          {[
-            { label: 'Dashboard', icon: LayoutDashboard, active: true },
-            { label: 'Transactions', icon: Wallet },
-            { label: 'Budgets', icon: TrendingUp },
-            { label: 'Settings', icon: Settings },
-          ].map((item) => (
-            <button key={item.label} className={cn("w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-200 font-bold", item.active ? "bg-indigo-600 text-white shadow-xl shadow-indigo-500/20" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-900")}>
-              <item.icon className="w-5 h-5" />
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        <div className="mt-auto">
-          <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10">
-            <LogOut className="w-5 h-5" /> Logout
-          </Button>
-        </div>
-      </aside>
+      <Sidebar userRole={user?.role} />
 
-      <main className="flex-1 p-4 lg:p-12 overflow-y-auto">
+      <main className="flex-1 p-4 lg:p-12 overflow-y-auto lg:ml-72">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>
-            <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Hello, Admin 👋</h1>
-            <p className="text-slate-500 dark:text-slate-400 font-medium">Here's your financial overview for May 2026.</p>
+            <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight mb-2">Hello, {user?.email?.split('@')[0] || 'User'} 👋</h1>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">Here's your financial overview for {new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}.</p>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:scale-105 transition-transform shadow-sm">
@@ -249,13 +258,13 @@ export default function Dashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={pieData} cx="50%" cy="50%" innerRadius={80} outerRadius={100} paddingAngle={8} dataKey="value">
-                    {pieData.map((entry: any, index: number) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                    {pieData.map((_entry, index: number) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                   </Pie>
                   <Tooltip contentStyle={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', border: 'none', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-col gap-4 pr-8">
-                {pieData.map((item: any, idx: number) => (
+                {pieData.map((item, idx: number) => (
                   <div key={idx} className="flex items-center gap-3">
                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
                     <span className="text-sm font-bold text-slate-600 dark:text-slate-400">{item.name}</span>
@@ -289,7 +298,7 @@ export default function Dashboard() {
               <div className="p-8">
                 {isLogsLoading ? <div className="space-y-4">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-16 w-full" />)}</div> : (
                   <div className="space-y-6">
-                    {auditLogs?.map((log: any) => (
+                    {auditLogs?.data?.map((log) => (
                       <div key={log.id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800">
                         <div className="flex items-center gap-4">
                           <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", log.action === 'CREATE' ? "bg-emerald-500/10 text-emerald-500" : log.action === 'DELETE' ? "bg-rose-500/10 text-rose-500" : "bg-indigo-500/10 text-indigo-500")}>
@@ -315,7 +324,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-900">
-                    {isTransactionsLoading ? [1, 2, 3, 4, 5].map((i) => <tr key={i}><td colSpan={4} className="px-8 py-6"><Skeleton className="h-12 w-full" /></td></tr>) : transactionsData?.transactions?.map((tx: any) => (
+                    {isTransactionsLoading ? [1, 2, 3, 4, 5].map((i) => <tr key={i}><td colSpan={4} className="px-8 py-6"><Skeleton className="h-12 w-full" /></td></tr>) : transactionsData?.data?.transactions?.slice(0, 5).map((tx) => (
                       <motion.tr layout key={tx.id} className="hover:bg-slate-50/80 dark:hover:bg-indigo-500/5 transition-colors group cursor-pointer">
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-4">
@@ -328,7 +337,7 @@ export default function Dashboard() {
                         <td className="px-8 py-6">
                           <div className="flex flex-wrap gap-2">
                             <Badge variant="neutral">{tx.category}</Badge>
-                            {tx.tags?.map((tag: any) => <Badge key={tag.id} variant="info"><TagIcon className="w-2.5 h-2.5 mr-1" />{tag.name}</Badge>)}
+                            {tx.tags?.map((tag) => <Badge key={tag.id} variant="info"><TagIcon className="w-2.5 h-2.5 mr-1" />{tag.name}</Badge>)}
                           </div>
                         </td>
                         <td className="px-8 py-6">
@@ -343,7 +352,7 @@ export default function Dashboard() {
                 </table>
               </div>
             )}
-            {activeTab !== 'activity' && (!transactionsData?.transactions || transactionsData.transactions.length === 0) && !isTransactionsLoading && (
+            {activeTab !== 'activity' && (!transactionsData?.data?.transactions || transactionsData.data.transactions.length === 0) && !isTransactionsLoading && (
               <div className="py-32 text-center">
                 <div className="w-24 h-24 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mx-auto mb-6"><DollarSign className="w-10 h-10 text-slate-300" /></div>
                 <h3 className="text-2xl font-black text-slate-900 dark:text-white mb-2">No Transactions</h3>

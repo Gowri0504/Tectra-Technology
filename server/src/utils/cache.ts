@@ -6,7 +6,7 @@ export const cache = {
     return data ? JSON.parse(data) : null;
   },
 
-  async set(key: string, value: any, ttlSeconds = 3600): Promise<void> {
+  async set(key: string, value: unknown, ttlSeconds = 3600): Promise<void> {
     await redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
   },
 

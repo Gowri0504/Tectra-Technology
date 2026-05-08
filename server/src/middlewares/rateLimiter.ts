@@ -4,7 +4,7 @@ export const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   message: {
-    status: 'error',
+    success: false,
     message: 'Too many requests, please try again later.',
   },
   standardHeaders: true,
@@ -15,7 +15,7 @@ export const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 10, // Limit each IP to 10 login/register requests per windowMs
   message: {
-    status: 'error',
+    success: false,
     message: 'Too many auth attempts, please try again later.',
   },
   standardHeaders: true,

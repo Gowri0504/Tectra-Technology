@@ -1,12 +1,12 @@
 import prisma from '../config/prisma';
-import { AuditAction } from '@prisma/client';
+import { AuditAction, Prisma } from '@prisma/client';
 
 export class AuditRepository {
   async createLog(data: {
     action: AuditAction;
     entityType: string;
     entityId?: string;
-    payload?: any;
+    payload?: Prisma.InputJsonValue;
     userId?: string;
     organizationId: string;
     ipAddress?: string;

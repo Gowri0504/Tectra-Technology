@@ -2,51 +2,61 @@ import { Request, Response, NextFunction } from 'express';
 import { logger } from '../utils/logger';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
+import { sendError } from '../utils/response';
 
 export class AppError extends Error {
   constructor(public statusCode: number, public message: string) {
     super(message);
     this.name = 'AppError';
+    Error.captureStackTrace(this, this.constructor);
   }
 }
 
 export const errorHandler = (
-  err: any,
+  err: Error & { statusCode?: number },
   req: Request,
   res: Response,
   _next: NextFunction
 ) => {
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal server error';
+
   if (err instanceof AppError) {
-    return res.status(err.statusCode).json({
-      status: 'error',
-      message: err.message,
-    });
+    return sendError(res, err.message, err.statusCode);
   }
 
   if (err instanceof ZodError) {
-    return res.status(400).json({
-      status: 'error',
-      message: 'Validation failed',
-      errors: err.issues,
-    });
+    return sendError(res, 'Validation failed', 400, err.issues);
   }
 
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
-      return res.status(400).json({
-        status: 'error',
-        message: 'Duplicate record found',
-      });
+      return sendError(res, 'Duplicate record found', 400);
     }
+    if (err.code === 'P2025') {
+      return sendError(res, 'Record not found', 404);
+    }
+    if (err.code === 'P2003') {
+      return sendError(res, 'Foreign key constraint failed', 400);
+    }
+  }
+
+  if (err instanceof Prisma.PrismaClientValidationError) {
+    return sendError(res, 'Invalid data provided to database', 400);
+  }
+
+  if (err instanceof Prisma.PrismaClientInitializationError) {
+    return sendError(res, 'Database connection failed', 503);
   }
 
   logger.error(err);
 
   const isProduction = process.env.NODE_ENV === 'production';
 
-  return res.status(500).json({
-    status: 'error',
-    message: isProduction ? 'Internal server error' : err.message,
-    stack: isProduction ? undefined : err.stack,
-  });
+  return sendError(
+    res,
+    isProduction ? 'Internal server error' : message,
+    statusCode,
+    isProduction ? undefined : { stack: err.stack, details: err }
+  );
 };

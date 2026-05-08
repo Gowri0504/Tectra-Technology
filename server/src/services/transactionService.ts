@@ -1,19 +1,61 @@
-import { TransactionRepository } from '../repositories/transactionRepository';
+import { TransactionRepository, MonthlySummary } from '../repositories/transactionRepository';
 import { AuditRepository } from '../repositories/auditRepository';
-import { TransactionType } from '@prisma/client';
+import { TransactionType, Transaction, Prisma } from '@prisma/client';
 import prisma from '../config/prisma';
 import { cache } from '../utils/cache';
 import { reportQueue } from '../config/queues';
+import { transactionCount } from '../utils/metrics';
+
+export interface TransactionWithTags {
+  id: string;
+  amount: Prisma.Decimal;
+  type: TransactionType;
+  description: string;
+  category: string;
+  date: Date;
+  tags: Array<{ id: string; name: string }>;
+}
+
+export interface PaginatedTransactions {
+  transactions: TransactionWithTags[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface CreateTransactionInput {
+  amount: number;
+  type: TransactionType;
+  description: string;
+  category: string;
+  date?: Date;
+  tags?: string[];
+}
+
+export interface TransactionQuery {
+  type?: TransactionType;
+  category?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+  cursor?: string;
+}
 
 export class TransactionService {
   private transactionRepository = new TransactionRepository();
   private auditRepository = new AuditRepository();
 
-  async createTransaction(userId: string, orgId: string, data: any) {
+  async createTransaction(userId: string, orgId: string, data: CreateTransactionInput): Promise<Transaction> {
     return prisma.$transaction(async (tx) => {
       const transaction = await tx.transaction.create({
         data: {
-          ...data,
+          amount: data.amount,
+          type: data.type,
+          description: data.description,
+          category: data.category,
+          date: data.date,
           userId,
           organizationId: orgId,
           tags: data.tags ? {
@@ -30,6 +72,9 @@ export class TransactionService {
       await cache.delByPrefix(`summary:${orgId}`);
       await cache.delByPrefix(`transactions:${orgId}`);
 
+      // Metrics
+      transactionCount.inc({ type: transaction.type, category: transaction.category, orgId });
+
       // Budget check
       if (transaction.type === 'EXPENSE') {
         this.checkBudget(orgId, transaction.category, userId);
@@ -39,7 +84,7 @@ export class TransactionService {
     });
   }
 
-  private async checkBudget(orgId: string, category: string, userId: string) {
+  private async checkBudget(orgId: string, category: string, userId: string): Promise<void> {
     const period = new Date().toISOString().slice(0, 7); // YYYY-MM
     const budget = await prisma.budget.findUnique({
       where: { category_period_organizationId: { category, period, organizationId: orgId } },
@@ -72,16 +117,19 @@ export class TransactionService {
     }
   }
 
-  async getTransactions(orgId: string, query: any) {
+  async getTransactions(orgId: string, query: TransactionQuery, userId?: string, role?: string): Promise<PaginatedTransactions> {
     const { type, category, startDate, endDate, search, page = 1, limit = 10, cursor } = query;
     
     // Caching for frequently accessed first page
-    const cacheKey = `transactions:${orgId}:${JSON.stringify(query)}`;
+    const cacheKey = `transactions:${orgId}:${JSON.stringify(query)}:${userId || 'all'}`;
     const cachedData = await cache.get(cacheKey);
-    if (cachedData) return cachedData;
+    if (cachedData) return cachedData as PaginatedTransactions;
 
     const skip = cursor ? undefined : (Number(page) - 1) * Number(limit);
     const take = Number(limit);
+
+    // If role is USER, only allow viewing own transactions
+    const filterUserId = role === 'USER' ? userId : undefined;
 
     const result = await this.transactionRepository.findAll(orgId, {
       type: type as TransactionType,
@@ -92,18 +140,27 @@ export class TransactionService {
       skip,
       take,
       cursor: cursor ? { id: cursor } : undefined,
+      userId: filterUserId,
     });
 
-    await cache.set(cacheKey, result, 300); // 5 min cache
-    return result;
+    const response: PaginatedTransactions = {
+      transactions: result.transactions,
+      total: result.total,
+      page: Number(page),
+      limit: Number(limit)
+    };
+
+    await cache.set(cacheKey, response, 300); // 5 min cache
+    return response;
   }
 
-  async getDashboardSummary(orgId: string) {
-    const cacheKey = `summary:${orgId}`;
+  async getDashboardSummary(orgId: string, userId?: string, role?: string) {
+    const cacheKey = `summary:${orgId}:${role === 'USER' ? userId : 'org'}`;
     const cachedSummary = await cache.get(cacheKey);
     if (cachedSummary) return cachedSummary;
 
-    const result = await this.transactionRepository.getSummary(orgId);
+    const filterUserId = role === 'USER' ? userId : undefined;
+    const result = await this.transactionRepository.getSummary(orgId, filterUserId);
     await cache.set(cacheKey, result, 3600); // 1 hour cache
     return result;
   }
@@ -112,19 +169,35 @@ export class TransactionService {
     return this.auditRepository.findByOrg(orgId);
   }
 
-  async getTransactionById(id: string, orgId: string) {
-    return this.transactionRepository.findById(id, orgId);
+  async getTransactionById(id: string, orgId: string, userId?: string, role?: string) {
+    const filterUserId = role === 'USER' ? userId : undefined;
+    return this.transactionRepository.findById(id, orgId, filterUserId);
   }
 
-  async updateTransaction(id: string, orgId: string, data: any) {
-    const result = await this.transactionRepository.update(id, orgId, data);
+  async updateTransaction(id: string, orgId: string, data: Partial<CreateTransactionInput>, userId?: string, role?: string): Promise<Prisma.BatchPayload> {
+    const filterUserId = role === 'USER' ? userId : undefined;
+    
+    // Convert tags to Prisma update format if present
+    const updateData: Prisma.TransactionUncheckedUpdateInput = {
+      ...data,
+      tags: data.tags ? {
+        set: [], // Clear and set new tags
+        connectOrCreate: data.tags.map((tag: string) => ({
+          where: { name_organizationId: { name: tag, organizationId: orgId } },
+          create: { name: tag, organizationId: orgId },
+        })),
+      } : undefined,
+    } as any; // Cast because of the complex Nested Tag Update type
+
+    const result = await this.transactionRepository.update(id, orgId, updateData, filterUserId);
     await cache.delByPrefix(`summary:${orgId}`);
     await cache.delByPrefix(`transactions:${orgId}`);
     return result;
   }
 
-  async deleteTransaction(id: string, orgId: string) {
-    const result = await this.transactionRepository.delete(id, orgId);
+  async deleteTransaction(id: string, orgId: string, userId?: string, role?: string): Promise<Prisma.BatchPayload> {
+    const filterUserId = role === 'USER' ? userId : undefined;
+    const result = await this.transactionRepository.delete(id, orgId, filterUserId);
     await cache.delByPrefix(`summary:${orgId}`);
     await cache.delByPrefix(`transactions:${orgId}`);
     return result;

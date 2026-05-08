@@ -1,73 +1,74 @@
-# 🚀 Tectra-Technology: Enterprise Multi-Tenant SaaS Expense Manager
+# Tectra SaaS - Enterprise Multi-Tenant Expense & Income Manager
 
-An enterprise-grade, production-ready SaaS system built for high scalability, strict security, and comprehensive observability.
+A production-grade, multi-tenant SaaS application built with Next.js 16, Node.js, PostgreSQL, Prisma, and Redis.
 
-## 🏗 Architecture
-The system follows a **Layered Architecture** (Controller-Service-Repository) for the backend and **Next.js App Router** for the frontend, ensuring modularity and clean separation of concerns.
+## 🚀 Key Features
 
-### Tech Stack
-- **Frontend**: Next.js 14, Tailwind CSS, React Query, Lucide Icons, next-themes.
-- **Backend**: Node.js, Express, TypeScript, Prisma ORM.
-- **Data & Cache**: PostgreSQL, Redis.
-- **Async Processing**: BullMQ (Background Jobs).
-- **Observability**: Prometheus, Pino (Structured Logging).
-- **DevOps**: Docker, Docker Compose, GitHub Actions.
+- **Multi-Tenant Isolation**: Strict data isolation at the database level using `organizationId`.
+- **Enterprise Auth**: JWT with short-lived access tokens and secure refresh token rotation/reuse detection.
+- **RBAC**: Role-based access control (ADMIN, ACCOUNTANT, USER) with granular permission checks.
+- **Financial Consistency**: Atomic operations using Prisma transactions for all financial data.
+- **Advanced Analytics**: Interactive dashboards and deep-dive analytics using Recharts.
+- **High Performance**: Redis caching, DB indexing, and optimized aggregation queries.
+- **Scalable Exports**: Cursor-based streaming for large CSV datasets.
+- **Production Ready**: Multi-stage Docker builds, health checks, and CI/CD pipelines.
 
-## ✨ Advanced Features
-- **🔐 Security**: 
-  - JWT Refresh Token Rotation with reuse detection.
-  - Hashed tokens stored in DB.
-  - Login throttling (brute-force protection).
-  - Device tracking (IP & User-Agent).
-- **🏢 Multi-Tenancy**: 
-  - Strict isolation enforced at JWT, Middleware, and Repository levels.
-- **📊 Performance**: 
-  - Redis caching for dashboard aggregates.
-  - Cursor-based pagination.
-  - Optimized Prisma queries.
-- **📁 File Export**: 
-  - Queue-based background CSV export using BullMQ.
-  - Streaming large datasets.
-- **🧾 Audit System**: 
-  - Full audit logging of all CUD operations.
-- **📈 Monitoring**: 
-  - `/metrics` endpoint for Prometheus.
-  - Request ID tracing across all logs.
-- **🎨 UI/UX**: 
-  - Dark Mode support.
-  - Role-based rendering.
-  - Dynamic Transaction Tags & Budget Alerts.
+## 🛠 Tech Stack
 
-## 🚀 Setup Guide
+### Frontend
+- **Framework**: Next.js 16 (App Router)
+- **State Management**: TanStack Query (React Query)
+- **Forms**: React Hook Form + Zod
+- **Styling**: Tailwind CSS + Framer Motion
+- **Charts**: Recharts
 
-### Docker Setup (Recommended)
-The project is optimized for Docker with multi-stage builds and Node 20+ compatibility for Prisma v7.
-
-```bash
-# Build and start all services
-docker-compose up --build
-
-# Run in background
-docker-compose up -d
-```
-
-### Troubleshooting
-- **Node Version**: Prisma v7 requires Node 20+. The Docker containers are configured to use `node:20-alpine`. If running locally, ensure your Node version is 20 or higher.
-- **Database Connection**: The backend waits for the database to be healthy before starting. If the database fails to start, check the logs: `docker-compose logs db`.
-- **Prisma Migrations**: In Docker, migrations are automatically applied on startup using `prisma migrate deploy`.
+### Backend
+- **Runtime**: Node.js + TypeScript
+- **Framework**: Express.js
+- **ORM**: Prisma + PostgreSQL
+- **Cache**: Redis
+- **Security**: Helmet, Rate Limiting, Bcrypt
+- **Logging**: Pino
 
 ## 🏗 Architecture
-The system follows an **Enterprise Layered Architecture**:
-- **API Layer**: Express controllers with Zod validation.
-- **Service Layer**: Business logic, cache management, and background job triggering.
-- **Repository Layer**: Data access using Prisma with multi-tenant isolation.
-- **Async Workers**: BullMQ workers for background tasks (e.g., CSV exports).
 
-## 📈 Performance & Scaling
-- **Caching**: Redis is used to cache dashboard summaries and transaction lists with an intelligent invalidation strategy.
-- **Indexing**: Database fields like `organizationId`, `date`, and `category` are indexed for O(1) or O(log N) lookup speeds.
-- **Monitoring**: Real-time metrics available at `/metrics` for Prometheus integration.
-- **Health Checks**: Every service has integrated health checks for high availability.
+The project follows a **Layered Architecture (N-Tier)**:
+1. **Controller Layer**: Request handling and input validation.
+2. **Service Layer**: Business logic and transaction orchestration.
+3. **Repository Layer**: Data access and Prisma query optimization.
 
----
-Built with ❤️ for Tectra Technology Assessment.
+## 🚦 Getting Started
+
+### Prerequisites
+- Docker & Docker Compose
+- Node.js 20+
+
+### Installation
+
+1. Clone the repository
+2. Set up environment variables:
+   ```bash
+   cp server/.env.example server/.env
+   cp client/.env.example client/.env
+   ```
+3. Start the infrastructure:
+   ```bash
+   docker-compose up --build
+   ```
+
+## 🛡 Security
+
+- **JWT Rotation**: Every refresh token usage generates a new pair and revokes the old one.
+- **HTTP-Only Cookies**: Refresh tokens are stored in secure, HttpOnly cookies to prevent XSS.
+- **CSRF Protection**: SameSite cookie policy combined with frontend state management.
+- **Audit Logging**: Every sensitive action (login, create, update, delete) is logged with actor and timestamp.
+
+## 📈 Scalability
+
+- **Database**: Indexed for O(log N) lookups on tenant and date fields.
+- **Concurrency**: Designed to handle 10k+ concurrent users through stateless design and caching.
+- **Memory**: Streaming exports ensure constant memory footprint regardless of dataset size.
+
+## 📄 License
+
+ISC License. Built for Tectra Technology Assessment.

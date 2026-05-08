@@ -1,17 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../services/authService';
-import { z } from 'zod';
-
-const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  orgName: z.string().min(2),
-});
-
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string(),
-});
+import { AppError } from '../middlewares/errorHandler';
+import { sendSuccess } from '../utils/response';
 
 export class AuthController {
   private authService = new AuthService();
@@ -27,15 +17,15 @@ export class AuthController {
     const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: isProduction, // Must be true for SameSite: None
-      sameSite: isProduction ? 'none' : 'strict', // Cross-domain in production
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'strict',
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }
 
   register = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { email, password, orgName } = registerSchema.parse(req.body);
+      const { email, password, orgName } = req.body;
       const { accessToken, refreshToken } = await this.authService.register(
         email, 
         password, 
@@ -43,7 +33,7 @@ export class AuthController {
         this.getDeviceData(req)
       );
       this.setRefreshTokenCookie(res, refreshToken);
-      res.status(201).json({ accessToken });
+      return sendSuccess(res, 'Registration successful', { accessToken }, 201);
     } catch (error) {
       next(error);
     }
@@ -51,14 +41,14 @@ export class AuthController {
 
   login = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { email, password } = loginSchema.parse(req.body);
+      const { email, password } = req.body;
       const { accessToken, refreshToken } = await this.authService.login(
         email, 
         password, 
         this.getDeviceData(req)
       );
       this.setRefreshTokenCookie(res, refreshToken);
-      res.json({ accessToken });
+      return sendSuccess(res, 'Login successful', { accessToken });
     } catch (error) {
       next(error);
     }
@@ -67,13 +57,13 @@ export class AuthController {
   refresh = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const refreshToken = req.cookies.refreshToken;
-      if (!refreshToken) throw new Error('Refresh token required');
+      if (!refreshToken) throw new AppError(401, 'Refresh token required');
       const { accessToken, refreshToken: newRefreshToken } = await this.authService.refreshToken(
         refreshToken, 
         this.getDeviceData(req)
       );
       this.setRefreshTokenCookie(res, newRefreshToken);
-      res.json({ accessToken });
+      return sendSuccess(res, 'Token refreshed', { accessToken });
     } catch (error) {
       next(error);
     }
@@ -83,10 +73,10 @@ export class AuthController {
     try {
       const refreshToken = req.cookies.refreshToken;
       if (refreshToken) {
-        await this.authService.logout(refreshToken);
+        await this.authService.logout(refreshToken, this.getDeviceData(req));
       }
       res.clearCookie('refreshToken');
-      res.status(204).send();
+      return sendSuccess(res, 'Logged out successfully');
     } catch (error) {
       next(error);
     }

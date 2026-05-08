@@ -1,20 +1,15 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../config/prisma';
 import { AuthRequest } from '../middlewares/authMiddleware';
-import { z } from 'zod';
-
-const budgetSchema = z.object({
-  category: z.string().min(1),
-  amount: z.number().positive(),
-  period: z.string().regex(/^\d{4}-\d{2}$/), // YYYY-MM
-});
+import { sendSuccess } from '../utils/response';
+import { AppError } from '../middlewares/errorHandler';
 
 export class BudgetController {
   createOrUpdate = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const { category, amount, period } = budgetSchema.parse(req.body);
+      const { category, amount, period } = req.body;
       const orgId = req.user?.orgId;
-      if (!orgId) throw new Error('Org ID required');
+      if (!orgId) throw new AppError(400, 'Org ID required');
 
       const budget = await prisma.budget.upsert({
         where: {
@@ -33,7 +28,7 @@ export class BudgetController {
         },
       });
 
-      res.json(budget);
+      return sendSuccess(res, 'Budget updated successfully', budget);
     } catch (error) {
       next(error);
     }
@@ -47,11 +42,11 @@ export class BudgetController {
       const budgets = await prisma.budget.findMany({
         where: { 
           organizationId: orgId,
-          period: period as string || undefined
+          period: period ? String(period) : undefined
         },
       });
 
-      res.json(budgets);
+      return sendSuccess(res, 'Budgets retrieved successfully', budgets);
     } catch (error) {
       next(error);
     }

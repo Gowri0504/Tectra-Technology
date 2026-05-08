@@ -3,19 +3,22 @@ import { Response } from 'express';
 import prisma from '../config/prisma';
 
 export class ExportService {
-  async streamTransactionsToCsv(res: Response, orgId: string) {
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=transactions.csv');
-
+  async streamTransactionsToCSV(res: Response, orgId: string, userId?: string, role?: string) {
     const csvStream = fastcsv.format({ headers: true });
     csvStream.pipe(res);
 
     const batchSize = 1000;
     let cursorId: string | undefined;
 
+    // If role is USER, only allow exporting own transactions
+    const filterUserId = role === 'USER' ? userId : undefined;
+
     while (true) {
       const transactions = await prisma.transaction.findMany({
-        where: { organizationId: orgId },
+        where: { 
+          organizationId: orgId,
+          userId: filterUserId,
+        },
         take: batchSize,
         skip: cursorId ? 1 : 0,
         cursor: cursorId ? { id: cursorId } : undefined,

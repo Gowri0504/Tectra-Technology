@@ -36,10 +36,10 @@ export default function RegisterPage() {
     setError('');
     try {
       const response = await api.post('/auth/register', data);
-      setAccessToken(response.data.accessToken);
+      setAccessToken(response.data.data.accessToken);
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed. Try again.');
+    } catch (err: unknown) {
+      setError((err as any).response?.data?.message || 'Registration failed. Try again.');
     } finally {
       setIsLoading(false);
     }

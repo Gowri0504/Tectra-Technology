@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/authController';
 import { authLimiter } from '../middlewares/rateLimiter';
+import { validate } from '../middlewares/validationMiddleware';
+import { registerSchema, loginSchema, refreshSchema } from '../validations/authValidation';
 
 const router = Router();
 const authController = new AuthController();
@@ -26,7 +28,7 @@ const authController = new AuthController();
  *       201:
  *         description: User registered successfully
  */
-router.post('/register', authLimiter, authController.register);
+router.post('/register', authLimiter, validate(registerSchema), authController.register);
 
 /**
  * @openapi
@@ -48,8 +50,8 @@ router.post('/register', authLimiter, authController.register);
  *       200:
  *         description: Login successful
  */
-router.post('/login', authLimiter, authController.login);
-router.post('/refresh', authController.refresh);
+router.post('/login', authLimiter, validate(loginSchema), authController.login);
+router.post('/refresh', validate(refreshSchema), authController.refresh);
 router.post('/logout', authController.logout);
 
 export default router;

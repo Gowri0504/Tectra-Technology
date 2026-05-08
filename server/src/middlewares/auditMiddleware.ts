@@ -10,7 +10,7 @@ export const auditLog = (action: AuditAction, entityType: string) => {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     const originalSend = res.send;
 
-    res.send = function (body: any) {
+    res.send = function (body: unknown): Response {
       if (res.statusCode >= 200 && res.statusCode < 300) {
         const payload = req.method === 'GET' ? null : req.body;
         
