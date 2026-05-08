@@ -1,10 +1,100 @@
+# name: CI/CD Pipeline
+
+# on:
+#   push:
+#     branches: [ main, master ]
+#   pull_request:
+#     branches: [ main, master ]
+
+# jobs:
+#   build-and-test:
+#     runs-on: ubuntu-latest
+
+#     services:
+#       postgres:
+#         image: postgres:15-alpine
+#         env:
+#           POSTGRES_USER: postgres
+#           POSTGRES_PASSWORD: password
+#           POSTGRES_DB: saas_db_test
+#         ports:
+#           - 5432:5432
+#         options: >-
+#           --health-cmd pg_isready
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+#       redis:
+#         image: redis:7-alpine
+#         ports:
+#           - 6379:6379
+#         options: >-
+#           --health-cmd "redis-cli ping"
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+
+#     steps:
+#     - uses: actions/checkout@v4
+
+#     - name: Use Node.js
+#       uses: actions/setup-node@v4
+#       with:
+#         node-version: '20'
+#         cache: 'npm'
+
+#     - name: Install Backend Dependencies
+#       run: |
+#         cd server
+#         npm ci
+
+#     - name: Run Backend Lint
+#       run: |
+#         cd server
+#         npm run lint
+
+#     - name: Prisma Generate & Migrate Check
+#       env:
+#         DATABASE_URL: postgresql://postgres:password@localhost:5432/saas_db_test
+#       run: |
+#         cd server
+#         npx prisma generate
+#         npx prisma migrate dev --name init
+
+#     - name: Run Backend Tests
+#       env:
+#         DATABASE_URL: postgresql://postgres:password@localhost:5432/saas_db_test
+#         ACCESS_TOKEN_SECRET: test-access-secret
+#         REFRESH_TOKEN_SECRET: test-refresh-secret
+#         REDIS_URL: redis://localhost:6379
+#       run: |
+#         cd server
+#         npm test
+
+#     - name: Build Backend
+#       run: |
+#         cd server
+#         npm run build
+
+#     - name: Install Frontend Dependencies
+#       run: |
+#         cd client
+#         npm ci
+
+#     - name: Build Frontend
+#       env:
+#         NEXT_PUBLIC_API_URL: http://localhost:5000/api
+#       run: |
+#         cd client
+#         npm run build
+
 name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   build-and-test:
@@ -24,6 +114,7 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
       redis:
         image: redis:7-alpine
         ports:
@@ -35,55 +126,61 @@ jobs:
           --health-retries 5
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Use Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
 
-    - name: Install Backend Dependencies
-      run: |
-        cd server
-        npm ci
+      - name: Install Backend Dependencies
+        run: |
+          cd server
+          npm ci
 
-    - name: Run Backend Lint
-      run: |
-        cd server
-        npm run lint
+      - name: Run Backend Lint
+        run: |
+          cd server
+          npm run lint
 
-    - name: Prisma Generate & Migrate Check
-      env:
-        DATABASE_URL: postgresql://postgres:password@localhost:5432/saas_db_test
-      run: |
-        cd server
-        npx prisma generate
-        npx prisma migrate dev --name init
+      - name: Prisma Generate
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/saas_db_test
+        run: |
+          cd server
+          npx prisma generate
 
-    - name: Run Backend Tests
-      env:
-        DATABASE_URL: postgresql://postgres:password@localhost:5432/saas_db_test
-        ACCESS_TOKEN_SECRET: test-access-secret
-        REFRESH_TOKEN_SECRET: test-refresh-secret
-        REDIS_URL: redis://localhost:6379
-      run: |
-        cd server
-        npm test
+      - name: Prisma Deploy Migrations
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/saas_db_test
+        run: |
+          cd server
+          npx prisma migrate deploy
 
-    - name: Build Backend
-      run: |
-        cd server
-        npm run build
+      - name: Run Backend Tests
+        env:
+          DATABASE_URL: postgresql://postgres:password@localhost:5432/saas_db_test
+          ACCESS_TOKEN_SECRET: test-access-secret
+          REFRESH_TOKEN_SECRET: test-refresh-secret
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd server
+          npm test
 
-    - name: Install Frontend Dependencies
-      run: |
-        cd client
-        npm ci
+      - name: Build Backend
+        run: |
+          cd server
+          npm run build
 
-    - name: Build Frontend
-      env:
-        NEXT_PUBLIC_API_URL: http://localhost:5000/api
-      run: |
-        cd client
-        npm run build
+      - name: Install Frontend Dependencies
+        run: |
+          cd client
+          npm ci
+
+      - name: Build Frontend
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:5000/api
+        run: |
+          cd client
+          npm run build
