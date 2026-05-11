@@ -40,15 +40,27 @@ export class UserRepository {
   }
 
   async update(id: string, orgId: string, data: Prisma.UserUpdateInput) {
+    // First verify ownership
+    const user = await this.findById(id, orgId);
+    if (!user) {
+      throw new Error('User not found or unauthorized');
+    }
+
     return prisma.user.update({
-      where: { id, organizationId: orgId },
+      where: { id },
       data,
     });
   }
 
   async delete(id: string, orgId: string) {
+    // First verify ownership
+    const user = await this.findById(id, orgId);
+    if (!user) {
+      throw new Error('User not found or unauthorized');
+    }
+
     return prisma.user.delete({
-      where: { id, organizationId: orgId },
+      where: { id },
     });
   }
 }

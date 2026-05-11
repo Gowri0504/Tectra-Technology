@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
-import { setAccessToken } from '@/lib/api';
+import api, { setAccessToken } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 interface User {
   userId: string;
@@ -23,33 +24,46 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
+    const initializeAuth = async () => {
       try {
-        const decoded = jwtDecode(token) as User;
-        setUser(decoded);
-        setAccessToken(token);
+        // Try to refresh token on load
+        const { data } = await api.post('/auth/refresh');
+        if (data.success && data.data.accessToken) {
+          const token = data.data.accessToken;
+          const decoded = jwtDecode(token) as User;
+          setUser(decoded);
+          setAccessToken(token);
+        }
       } catch (err) {
-        localStorage.removeItem('accessToken');
+        // No valid refresh token, user is not logged in
         setAccessToken(null);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    setIsLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   const login = (token: string) => {
-    localStorage.setItem('accessToken', token);
     setAccessToken(token);
     const decoded = jwtDecode(token) as User;
     setUser(decoded);
   };
 
-  const logout = () => {
-    localStorage.removeItem('accessToken');
-    setAccessToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (err) {
+      console.error('Logout failed', err);
+    } finally {
+      setAccessToken(null);
+      setUser(null);
+      router.push('/login');
+    }
   };
 
   return (

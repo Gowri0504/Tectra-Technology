@@ -1,38 +1,20 @@
 # ============================================
-# PRODUCTION BACKEND DOCKERFILE
-# Multi-stage build for optimal image size
+# PRODUCTION BACKEND DOCKERFILE (OFFLINE BUILD)
 # ============================================
 
-# STAGE 1: Dependencies
-FROM node:20-alpine AS deps
-RUN apk add --no-cache openssl libc6-compat python3 make g++
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-
-# STAGE 2: Builder
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-COPY prisma ./prisma/
-RUN npx prisma generate
-RUN npm run build
-
-# STAGE 3: Runner
-FROM node:20-alpine AS runner
-RUN apk add --no-cache openssl
+FROM node:20 AS runner
 WORKDIR /app
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nodeuser
+RUN groupadd --system --gid 1001 nodejs
+RUN useradd --system --uid 1001 nodeuser -g nodejs
 
 ENV NODE_ENV=production
 
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/package*.json ./
+# Copy built assets from host
+COPY dist ./dist
+COPY node_modules ./node_modules
+COPY prisma ./prisma
+COPY package*.json ./
 
 RUN chown -R nodeuser:nodejs /app
 USER nodeuser
@@ -40,6 +22,6 @@ USER nodeuser
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:5000/health || exit 1
+    CMD node -e "require('http').get('http://localhost:5000/health', (res) => res.statusCode === 200 ? process.exit(0) : process.exit(1))"
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+CMD ["node", "dist/src/index.js"]

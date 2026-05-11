@@ -80,6 +80,15 @@ export class TransactionService {
         this.checkBudget(orgId, transaction.category, userId);
       }
 
+      await this.auditRepository.createLog({
+        action: 'CREATE',
+        entityType: 'Transaction',
+        entityId: transaction.id,
+        organizationId: orgId,
+        userId: userId,
+        payload: data as any,
+      });
+
       return transaction;
     });
   }
@@ -174,7 +183,7 @@ export class TransactionService {
     return this.transactionRepository.findById(id, orgId, filterUserId);
   }
 
-  async updateTransaction(id: string, orgId: string, data: Partial<CreateTransactionInput>, userId?: string, role?: string): Promise<Prisma.BatchPayload> {
+  async updateTransaction(id: string, orgId: string, data: Partial<CreateTransactionInput>, userId?: string, role?: string): Promise<any> {
     const filterUserId = role === 'USER' ? userId : undefined;
     
     // Convert tags to Prisma update format if present
@@ -187,17 +196,36 @@ export class TransactionService {
           create: { name: tag, organizationId: orgId },
         })),
       } : undefined,
-    } as any; // Cast because of the complex Nested Tag Update type
+    } as any;
 
     const result = await this.transactionRepository.update(id, orgId, updateData, filterUserId);
+
+    await this.auditRepository.createLog({
+      action: 'UPDATE',
+      entityType: 'Transaction',
+      entityId: id,
+      organizationId: orgId,
+      userId: userId,
+      payload: data as any,
+    });
+
     await cache.delByPrefix(`summary:${orgId}`);
     await cache.delByPrefix(`transactions:${orgId}`);
     return result;
   }
 
-  async deleteTransaction(id: string, orgId: string, userId?: string, role?: string): Promise<Prisma.BatchPayload> {
+  async deleteTransaction(id: string, orgId: string, userId?: string, role?: string): Promise<any> {
     const filterUserId = role === 'USER' ? userId : undefined;
     const result = await this.transactionRepository.delete(id, orgId, filterUserId);
+
+    await this.auditRepository.createLog({
+      action: 'DELETE',
+      entityType: 'Transaction',
+      entityId: id,
+      organizationId: orgId,
+      userId: userId,
+    });
+
     await cache.delByPrefix(`summary:${orgId}`);
     await cache.delByPrefix(`transactions:${orgId}`);
     return result;

@@ -39,23 +39,42 @@ export class TransactionRepository {
   }
 
   async update(id: string, orgId: string, data: Prisma.TransactionUncheckedUpdateInput, userId?: string) {
-    return prisma.transaction.updateMany({
+    // First verify ownership
+    const transaction = await prisma.transaction.findFirst({
       where: { 
         id, 
         organizationId: orgId,
         userId: userId || undefined
-      },
+      }
+    });
+
+    if (!transaction) {
+      throw new Error('Transaction not found or unauthorized');
+    }
+
+    // Use update to allow relation updates (like tags)
+    return prisma.transaction.update({
+      where: { id },
       data,
     });
   }
 
   async delete(id: string, orgId: string, userId?: string) {
-    return prisma.transaction.deleteMany({
+    // First verify ownership
+    const transaction = await prisma.transaction.findFirst({
       where: { 
         id, 
         organizationId: orgId,
         userId: userId || undefined
-      },
+      }
+    });
+
+    if (!transaction) {
+      throw new Error('Transaction not found or unauthorized');
+    }
+
+    return prisma.transaction.delete({
+      where: { id },
     });
   }
 

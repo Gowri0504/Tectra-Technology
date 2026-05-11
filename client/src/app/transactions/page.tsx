@@ -5,7 +5,7 @@ import api from '@/lib/api';
 import { 
   Wallet, Plus, Download, Search, Filter, 
   ArrowUpRight, ArrowDownLeft, MoreHorizontal,
-  Calendar, Tag as TagIcon
+  Calendar, Tag as TagIcon, Pencil, Trash2
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
@@ -15,7 +15,6 @@ import { TransactionModal } from '@/components/dashboard/TransactionModal';
 import { formatCurrency, cn } from '@/lib/utils';
 import { useNotify } from '@/providers/NotificationProvider';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Trash2 } from 'lucide-react';
 
 interface Transaction {
   id: string;
@@ -37,7 +36,18 @@ export default function TransactionsPage() {
   const { user } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
   const [search, setSearch] = useState('');
+
+  const handleEdit = (tx: Transaction) => {
+    setTransactionToEdit(tx);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setTransactionToEdit(null);
+  };
   const [typeFilter, setTypeFilter] = useState('ALL');
   const notify = useNotify();
   const queryClient = useQueryClient();
@@ -207,16 +217,28 @@ export default function TransactionsPage() {
                         }`}>
                           {tx.type === 'INCOME' ? '+' : '-'}{formatCurrency(Number(tx.amount))}
                         </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirm('Are you sure?')) deleteMutation.mutate(tx.id);
-                          }}
-                          className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
-                          aria-label="Delete transaction"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEdit(tx);
+                            }}
+                            className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-xl transition-all"
+                            aria-label="Edit transaction"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm('Are you sure?')) deleteMutation.mutate(tx.id);
+                            }}
+                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all"
+                            aria-label="Delete transaction"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -226,7 +248,11 @@ export default function TransactionsPage() {
           </table>
         </div>
 
-        <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+        <TransactionModal 
+          isOpen={isModalOpen} 
+          onClose={handleCloseModal} 
+          transactionToEdit={transactionToEdit} 
+        />
       </main>
     </div>
   );

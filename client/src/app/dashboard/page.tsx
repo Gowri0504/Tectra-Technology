@@ -1,12 +1,12 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api, { setAccessToken } from '@/lib/api';
 import { 
   DollarSign, TrendingUp, TrendingDown, Download, Plus, 
   Moon, Sun, Tag as TagIcon, LayoutDashboard, Wallet, 
   Settings, LogOut, ArrowUpRight, ArrowDownLeft, Calendar,
-  PieChart as PieIcon, BarChart3, Filter
+  PieChart as PieIcon, BarChart3, Filter, Pencil, Trash2
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState, useMemo } from 'react';
@@ -61,9 +61,31 @@ export default function Dashboard() {
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [transactionToEdit, setTransactionToEdit] = useState<Transaction | null>(null);
   const [search, setSearch] = useState('');
   const notify = useNotify();
   const router = useRouter();
+
+  const handleEdit = (tx: Transaction) => {
+    setTransactionToEdit(tx);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setTransactionToEdit(null);
+  };
+
+  const queryClient = useQueryClient();
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/transactions/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['summary'] });
+      notify('success', 'Transaction deleted');
+    },
+    onError: () => notify('error', 'Failed to delete transaction')
+  });
 
   useEffect(() => setMounted(true), []);
 
@@ -211,7 +233,11 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <TransactionModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+        <TransactionModal 
+          isOpen={isModalOpen} 
+          onClose={handleCloseModal} 
+          transactionToEdit={transactionToEdit}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           {isSummaryLoading ? [1, 2, 3].map((i) => <Card key={i} className="p-8"><Skeleton className="h-6 w-24 mb-4" /><Skeleton className="h-10 w-32" /></Card>) : stats.map((stat, idx) => (
@@ -343,8 +369,16 @@ export default function Dashboard() {
                         <td className="px-8 py-6">
                           <div className="flex items-center gap-2 text-sm font-bold text-slate-500 dark:text-slate-400"><Calendar className="w-4 h-4" />{new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                         </td>
-                        <td className={cn("px-8 py-6 text-right font-black text-xl tabular-nums", tx.type === 'INCOME' ? "text-emerald-600" : "text-rose-600")}>
-                          {tx.type === 'INCOME' ? '+' : '-'}{formatCurrency(tx.amount)}
+                        <td className={cn("px-8 py-6 text-right font-black text-xl tabular-nums flex items-center justify-end gap-4", tx.type === 'INCOME' ? "text-emerald-600" : "text-rose-600")}>
+                          <span>{tx.type === 'INCOME' ? '+' : '-'}{formatCurrency(tx.amount)}</span>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                            <button onClick={(e) => { e.stopPropagation(); handleEdit(tx); }} className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-xl transition-all">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); if (confirm('Are you sure?')) deleteMutation.mutate(tx.id); }} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       </motion.tr>
                     ))}

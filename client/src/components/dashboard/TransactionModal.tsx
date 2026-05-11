@@ -9,6 +9,7 @@ import { Button, Input } from '@/components/ui/EliteComponents';
 import api from '@/lib/api';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { useEffect } from 'react';
 
 const transactionSchema = z.object({
   amount: z.number().positive('Amount must be positive'),
@@ -21,7 +22,21 @@ const transactionSchema = z.object({
 
 type TransactionFormValues = z.infer<typeof transactionSchema>;
 
-export const TransactionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
+interface Transaction {
+  id: string;
+  amount: number;
+  type: 'INCOME' | 'EXPENSE';
+  description: string;
+  category: string;
+  date: string;
+  tags?: Array<{ id: string; name: string }>;
+}
+
+export const TransactionModal = ({ isOpen, onClose, transactionToEdit }: { 
+  isOpen: boolean; 
+  onClose: () => void;
+  transactionToEdit?: Transaction | null;
+}) => {
   const queryClient = useQueryClient();
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<TransactionFormValues>({
     resolver: zodResolver(transactionSchema),
@@ -32,6 +47,25 @@ export const TransactionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose
     }
   });
 
+  useEffect(() => {
+    if (transactionToEdit) {
+      reset({
+        amount: Number(transactionToEdit.amount),
+        type: transactionToEdit.type,
+        description: transactionToEdit.description,
+        category: transactionToEdit.category,
+        date: new Date(transactionToEdit.date).toISOString().split('T')[0],
+        tags: transactionToEdit.tags?.map(t => t.name).join(', ') || ''
+      });
+    } else {
+      reset({
+        type: 'EXPENSE',
+        date: new Date().toISOString().split('T')[0],
+        tags: ''
+      });
+    }
+  }, [transactionToEdit, reset]);
+
   const currentType = watch('type');
 
   const mutation = useMutation({
@@ -40,6 +74,9 @@ export const TransactionModal = ({ isOpen, onClose }: { isOpen: boolean; onClose
         ...data,
         tags: data.tags ? data.tags.split(',').map(s => s.trim()) : []
       };
+      if (transactionToEdit) {
+        return api.patch(`/transactions/${transactionToEdit.id}`, payload);
+      }
       return api.post('/transactions', payload);
     },
     onMutate: async (newTransaction) => {

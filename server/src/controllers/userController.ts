@@ -20,7 +20,7 @@ export class UserController {
   create = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, 'User not authenticated');
-      const user = await this.userService.createUser(req.user.orgId, req.body);
+      const user = await this.userService.createUser(req.user.orgId, req.body, req.user.userId);
       return sendSuccess(res, 'User created successfully', user, 201);
     } catch (error) {
       next(error);
@@ -30,7 +30,7 @@ export class UserController {
   update = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       if (!req.user) throw new AppError(401, 'User not authenticated');
-      const user = await this.userService.updateUser(String(req.params.id), req.user.orgId, req.body);
+      const user = await this.userService.updateUser(String(req.params.id), req.user.orgId, req.body, req.user.userId);
       return sendSuccess(res, 'User updated successfully', user);
     } catch (error) {
       next(error);
