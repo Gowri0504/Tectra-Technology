@@ -12,7 +12,7 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({
-  origin: env.CLIENT_URL,
+  origin: ["http://localhost:3000", env.CLIENT_URL],
   credentials: true,
 }));
 app.use(compression());
